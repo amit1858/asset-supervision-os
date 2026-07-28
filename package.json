@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed:verify": "tsx --conditions=react-server scripts/verify-seed.ts"
+    "seed:verify": "tsx --conditions=react-server scripts/verify-seed.ts",
+    "qa:preview": "node scripts/qa-preview-smoke.mjs"
   },
   "dependencies": {
     "geist": "1.3.1",

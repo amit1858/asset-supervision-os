@@ -185,6 +185,15 @@ Browser/visual QA harnesses (Playwright; screenshots written under the gitignore
 `scripts/qa-voice-polish.mjs`, `scripts/qa-hardening.mjs`, `scripts/qa-voice-shell.mjs`,
 `scripts/qa-screenshots.mjs`.
 
+Deployed-preview smoke test (routes, themes, persona switch, Chief of Staff brief, governed
+voice, and a check that no third-party host is contacted). The target URL is supplied at run
+time — no credentials or deployment IDs are embedded:
+
+```bash
+QA_BASE_URL="https://<your-preview>.vercel.app" npm run qa:preview
+```
+
+
 ---
 
 ## Documentation
