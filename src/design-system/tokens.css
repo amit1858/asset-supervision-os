@@ -1,0 +1,273 @@
+/* ==========================================================================
+   Asset Supervision OS — Design Tokens
+   --------------------------------------------------------------------------
+   Single source of truth for all visual primitives, exposed as CSS variables.
+   Light mode is implemented first. A dark "control-room" theme can be added
+   later by overriding these variables under [data-theme="dark"] without
+   touching any component markup.
+
+   Severity colors (healthy / attention / critical …) MUST always be paired
+   with a label, icon, or shape in the UI — never color alone (WCAG 2.1 AA).
+   ========================================================================== */
+
+:root {
+  /* --- Surfaces ---------------------------------------------------------- */
+  color-scheme: light;
+  --color-canvas: #f3f6f9;          /* cool off-white app background */
+  --color-surface: #ffffff;         /* cards, panels */
+  --color-elevated: #eef2f7;        /* subtle cool gray raised areas */
+  --color-overlay: rgba(16, 24, 40, 0.48);
+  --skeleton-mid: #e3e8ef;
+
+  /* --- Borders ----------------------------------------------------------- */
+  --color-border: #dce1e9;
+  --color-border-strong: #c1c9d4;
+
+  /* --- Text -------------------------------------------------------------- */
+  --color-text-primary: #101828;    /* near-black navy */
+  --color-text-secondary: #475467;  /* slate gray (AA on surface) */
+  --color-text-muted: #667085;
+  --color-text-inverted: #ffffff;
+
+  /* --- Brand / interactive ---------------------------------------------- */
+  --color-brand: #1554b4;           /* industrial blue */
+  --color-brand-hover: #10428f;
+  --color-brand-subtle: #e7f0fb;
+  --color-brand-text: #123f86;
+
+  /* --- Application header chrome (strong enterprise-blue in light) -------- */
+  --color-header-bg: #123f86;
+  --color-header-fg: #eef4fc;
+  --color-header-muted: #a9c3e8;
+  --color-header-border: #1b4a97;
+  --color-header-control: rgba(255, 255, 255, 0.10);
+  --color-header-control-hover: rgba(255, 255, 255, 0.18);
+  --color-header-control-border: rgba(255, 255, 255, 0.24);
+
+  /* --- Operational status roles ----------------------------------------- */
+  /* Healthy (green) */
+  --color-healthy: #1f8a4c;
+  --color-healthy-subtle: #e6f4ec;
+  --color-healthy-border: #a4d6b8;
+  --color-healthy-text: #116a38;
+  /* Attention (amber) */
+  --color-attention: #b9770f;
+  --color-attention-subtle: #fbf1df;
+  --color-attention-border: #eccf92;
+  --color-attention-text: #8a5806;
+  /* Critical (red) */
+  --color-critical: #c62f2f;
+  --color-critical-subtle: #fbeceb;
+  --color-critical-border: #f0b1ac;
+  --color-critical-text: #9f1d1d;
+  /* Informational (cyan/blue) */
+  --color-info: #0e7ea8;
+  --color-info-subtle: #e3f4fa;
+  --color-info-border: #a2dbec;
+  --color-info-text: #0a6288;
+  /* Planned turnaround (violet) */
+  --color-planned: #6d3fd1;
+  --color-planned-subtle: #f0eafb;
+  --color-planned-border: #cbb6ef;
+  --color-planned-text: #582cb6;
+  /* AI insight (distinct indigo) */
+  --color-ai: #4338ca;
+  --color-ai-subtle: #ebecfb;
+  --color-ai-border: #bbbcef;
+  --color-ai-text: #362f9c;
+  /* Neutral status (offline / monitor / unknown) */
+  --color-neutral: #667085;
+  --color-neutral-subtle: #eff2f6;
+  --color-neutral-border: #d1d7e0;
+  --color-neutral-text: #3f4a5a;
+
+  /* --- Equipment criticality scale (separate from event severity) ------- */
+  --criticality-a: #9b2226;   /* A — safety / highest consequence */
+  --criticality-b: #b9490f;   /* B — high */
+  --criticality-c: #b9770f;   /* C — medium */
+  --criticality-d: #2f6fae;   /* D — low */
+  --criticality-e: #667085;   /* E — minimal */
+
+  /* --- Data freshness ---------------------------------------------------- */
+  --freshness-live: #1f8a4c;
+  --freshness-recent: #667085;
+  --freshness-stale: #b9770f;
+  --freshness-offline: #c62f2f;
+
+  /* --- Chart palette (semantic — same metric = same color everywhere) ---- */
+  --chart-vibration: #1554b4;
+  --chart-temperature: #b9490f;
+  --chart-risk: #c62f2f;
+  --chart-oee: #1f8a4c;
+  --chart-availability: #1554b4;
+  --chart-performance: #0e7ea8;
+  --chart-quality: #6d3fd1;
+  --chart-forecast: #6d3fd1;
+  --chart-threshold-warning: #b9770f;
+  --chart-threshold-critical: #c62f2f;
+  --chart-grid: #e6eaf0;
+  --chart-axis: #667085;
+  /* Categorical series (ordered, colorblind-aware) */
+  --chart-1: #1554b4;
+  --chart-2: #0e7ea8;
+  --chart-3: #1f8a4c;
+  --chart-4: #b9770f;
+  --chart-5: #6d3fd1;
+  --chart-6: #b5482f;
+
+  /* --- Typography -------------------------------------------------------- */
+  --font-sans: var(--font-geist-sans), "Inter", system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", "Cascadia Code",
+    Menlo, Consolas, monospace;
+
+  /* --- Radius (restrained) ---------------------------------------------- */
+  --radius-sm: 3px;
+  --radius: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+
+  /* --- Shadows (subtle) -------------------------------------------------- */
+  --shadow-subtle: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --shadow-panel: 0 6px 16px rgba(16, 24, 40, 0.10);
+  --shadow-focus: 0 0 0 3px rgba(21, 84, 180, 0.35);
+
+  /* --- Focus ------------------------------------------------------------- */
+  --focus-ring: #1554b4;
+
+  /* --- Motion ------------------------------------------------------------ */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+
+  /* --- Spacing scale (reference; Tailwind spacing also available) -------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+}
+
+/* ==========================================================================
+   Dark theme — professional industrial control-room, not pure black.
+   Applied via [data-theme="dark"] on <html>. Only token VALUES change; no
+   component markup or page styles are duplicated. Status/severity meanings are
+   preserved (green=healthy, amber=attention, red=critical, violet=planned,
+   indigo=AI). Text is off-white (never pure #fff); saturation is restrained.
+   ========================================================================== */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces — dark navy/charcoal canvas, slightly elevated slate cards */
+  --color-canvas: #0f141b;
+  --color-surface: #161c25;
+  --color-elevated: #1e2632;
+  --color-overlay: rgba(0, 0, 0, 0.62);
+  --skeleton-mid: #263041;
+
+  /* Borders — visible but restrained separation on dark surfaces */
+  --color-border: #2a3340;
+  --color-border-strong: #3a4553;
+
+  /* Text — off-white primary, readable secondary/muted */
+  --color-text-primary: #e7ecf3;
+  --color-text-secondary: #aab5c4;
+  --color-text-muted: #8b97a8;
+  --color-text-inverted: #0f141b;
+
+  /* Brand / interactive */
+  --color-brand: #3b82d6;
+  --color-brand-hover: #5a9be6;
+  --color-brand-subtle: #14233a;
+  --color-brand-text: #82b4ee;
+
+  /* Application header chrome — deep navy/charcoal in dark */
+  --color-header-bg: #0b1220;
+  --color-header-fg: #e7ecf3;
+  --color-header-muted: #8b97a8;
+  --color-header-border: #1b2534;
+  --color-header-control: rgba(255, 255, 255, 0.06);
+  --color-header-control-hover: rgba(255, 255, 255, 0.12);
+  --color-header-control-border: rgba(255, 255, 255, 0.14);
+
+  /* Operational status roles */
+  --color-healthy: #34ad68;
+  --color-healthy-subtle: #10251a;
+  --color-healthy-border: #235238;
+  --color-healthy-text: #72d69d;
+
+  --color-attention: #d69a34;
+  --color-attention-subtle: #2a1f0c;
+  --color-attention-border: #5a4622;
+  --color-attention-text: #e8bb6c;
+
+  --color-critical: #e5645c;
+  --color-critical-subtle: #2b1413;
+  --color-critical-border: #5c2b28;
+  --color-critical-text: #f1948e;
+
+  --color-info: #34a0c4;
+  --color-info-subtle: #08222b;
+  --color-info-border: #1d4a57;
+  --color-info-text: #67c5e2;
+
+  --color-planned: #9a72e6;
+  --color-planned-subtle: #1c1430;
+  --color-planned-border: #3c2e5c;
+  --color-planned-text: #ba9df0;
+
+  --color-ai: #7b74e6;
+  --color-ai-subtle: #16162f;
+  --color-ai-border: #343260;
+  --color-ai-text: #a7a0f2;
+
+  --color-neutral: #8a95a5;
+  --color-neutral-subtle: #1a2029;
+  --color-neutral-border: #333d4a;
+  --color-neutral-text: #aeb8c6;
+
+  /* Equipment criticality (kept distinct, brightened for dark) */
+  --criticality-a: #e5645c;
+  --criticality-b: #e08a4a;
+  --criticality-c: #d69a34;
+  --criticality-d: #4d9be6;
+  --criticality-e: #8a95a5;
+
+  /* Data freshness */
+  --freshness-live: #34ad68;
+  --freshness-recent: #8a95a5;
+  --freshness-stale: #d69a34;
+  --freshness-offline: #e5645c;
+
+  /* Charts — brighter on dark; same metric = same color as light */
+  --chart-vibration: #4d9be6;
+  --chart-temperature: #e08a4a;
+  --chart-risk: #e5645c;
+  --chart-oee: #34ad68;
+  --chart-availability: #4d9be6;
+  --chart-performance: #34a0c4;
+  --chart-quality: #9a72e6;
+  --chart-forecast: #9a72e6;
+  --chart-threshold-warning: #d69a34;
+  --chart-threshold-critical: #e5645c;
+  --chart-grid: #263039;
+  --chart-axis: #8b97a8;
+  --chart-1: #4d9be6;
+  --chart-2: #34a0c4;
+  --chart-3: #34ad68;
+  --chart-4: #d69a34;
+  --chart-5: #9a72e6;
+  --chart-6: #e0774f;
+
+  /* Shadows — subtler on dark, rely more on borders */
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-panel: 0 8px 20px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 3px rgba(90, 155, 230, 0.45);
+
+  /* Focus */
+  --focus-ring: #5a9be6;
+}
