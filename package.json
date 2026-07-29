@@ -16,7 +16,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed:verify": "tsx --conditions=react-server scripts/verify-seed.ts",
-    "qa:preview": "node scripts/qa-preview-smoke.mjs"
+    "qa:preview": "node scripts/qa-preview-smoke.mjs",
+    "qa:v2": "node scripts/qa-v2-shell.mjs",
+    "qa:v2:http": "node scripts/qa-v2-http.mjs"
   },
   "dependencies": {
     "geist": "1.3.1",
