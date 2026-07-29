@@ -4,6 +4,11 @@ Status: **Complete** · Branch: `copilot/v2-phase-1-enterprise-shell` (from `0e4
 Scope: parallel `/v2` presentation layer only. No existing route, component,
 engine, repository, middleware, layout, or dependency was modified.
 
+> **Phase 1.1 addendum (Windows / Edge visual QA):** the browser QA that could
+> not run on the original restricted ARM64 machine has now been executed on
+> Windows using the locally installed Microsoft Edge (no Chromium download). See
+> §10. One targeted V2-shell accessibility fix resulted; no V1 code changed.
+
 ---
 
 ## 1. Delivered scope
@@ -113,24 +118,34 @@ New tests: `src/v2/routes.test.ts` (7), `nav.test.ts` (9), `access.test.ts` (9),
 ## 7. Accessibility findings
 
 - Keyboard/focus and dismissal behaviour is inherited from the reused header
-  controls (search overlay, persona selector, assistant panel).
+  controls (search overlay, assistant panel). The **persona selector** was
+  hardened in Phase 1.1: it declared `role="listbox"`/`role="option"` but
+  previously had no Escape-to-close, no focus return, and no arrow-key movement.
+  It now closes on **Escape** and returns focus to its trigger, moves focus to
+  the selected option on open, and supports **Up/Down** roving between options —
+  matching the governed assistant's focus contract (see §10).
 - Navigation uses `aria-current`, the thread uses `aria-current="step"`, and the
   restricted state explains the missing authority in text (not colour alone).
 - Status/source tone carries operational meaning only; numbers are tabular.
-- No horizontal overflow at 1024px in the HTTP smoke render; full desktop-first
-  layout at 1440px. (Pixel-level focus-ring/contrast review is deferred to the
-  browser QA below.)
+- No horizontal overflow at 1024–1920px, headings clear the sticky header, and
+  the sidebar sits flush beneath it — all verified by browser assertions in §10.
 
 ## 8. Known limitations
 
-- **Browser QA screenshots not captured in this environment.** Playwright browser
-  binaries could not be downloaded on this restricted ARM64 machine
-  (`npx playwright install chromium` does not complete). `scripts/qa-v2-shell.mjs`
-  is committed and ready (personas × viewports × themes, assistant/persona-selector
-  captures, console/overflow/external-host assertions) and should be run on a
-  network-capable machine via `npm run qa:v2`. The browserless
-  `scripts/qa-v2-http.mjs` (`npm run qa:v2:http`) was used as the Phase 1
-  substitute and passed 32/32.
+- **Browser QA screenshots are now captured (Phase 1.1).** Playwright browser
+  binaries still cannot be downloaded on the restricted ARM64 machine, so the QA
+  script was updated to drive the locally installed **Microsoft Edge** via
+  `channel: "msedge"` (with a portable Chromium fallback and explicit-Edge-path
+  fallback). The full matrix and assertions passed **410/410** — see §10. The
+  browserless `scripts/qa-v2-http.mjs` (`npm run qa:v2:http`) remains as a
+  network-independent smoke and passed **32/32**.
+- **Pre-existing (out-of-scope) observations, not changed here:**
+  - No `favicon.ico` ships in `src/app`, so the browser's automatic favicon
+    request returns 404 on both v1 and v2. This is an app-level gap, not a v2
+    shell defect; the QA asserts on precise responses and ignores this one.
+  - The reused v1 Chief-of-Staff brief renders non-pluralised counts
+    (e.g. "2 changes · 1 items"). Fixing it would modify customer-facing v1 code,
+    which is prohibited in this phase; recorded for a future v1 polish pass.
 - Phase 1 surfaces are honest **placeholders** — the detailed workspaces are
   Phase 2.
 
@@ -143,3 +158,88 @@ Build the per-persona workspaces behind the placeholders, starting with the
 contract for its surface. Reuse the shell, context, thread, and assistant
 delivered here; do not fork logic into components. Existing v1 routes remain the
 production experience until a route-by-route cut-over is approved.
+
+## 10. Windows / Edge visual QA (Phase 1.1)
+
+### 10.1 Environment & browser
+- **OS/runtime:** Windows (ARM64), Node v24.16.0, npm 11.13.0, lockfileVersion 3.
+- **Browser:** locally installed **Microsoft Edge**, launched by Playwright via
+  `chromium.launch({ channel: "msedge" })` — **no Chromium binary was
+  downloaded**. `scripts/qa-v2-shell.mjs` now resolves a browser in this order:
+  (1) Edge channel, (2) a bundled Chromium binary if already present, (3) a
+  standard-path Edge executable, else it fails with an actionable message. Base
+  URL, port, output dir and "reuse running server" are all env-configurable.
+- **Server under test:** production `next start` on a private local port.
+
+### 10.2 Screenshot matrix (full-size, `qa/v2-phase1/windows/`, gitignored)
+- **10 routes × 4 viewports × 2 themes = 80 full-page screenshots**, plus **7
+  interaction-state captures** (87 total).
+- Viewports: **1920×1080, 1440×900, 1280×800, 1024×768** (desktop-first, usable
+  at 1024).
+- Routes use the **real** v2 paths (`/v2/plant`, not `/plant-overview`):
+  plant, shift, reliability, watchlist, planning, materials, turnaround,
+  agent-control, assets/K-201, oee.
+- Interaction states: assistant closed, assistant open, persona selector open,
+  keyboard focus after Escape, restricted (materials → OEE), Phase-2 placeholder
+  (portfolio), and asset context preserved across a persona switch (dark).
+
+### 10.3 Automated browser assertions — **410/410 passed**
+Per page in the matrix: HTTP 200 + expected content; **no** console errors,
+hydration warnings, or ResizeObserver loops; **no** horizontal overflow; heading
+clears the sticky header; sidebar flush beneath the header. Global/state checks:
+Chief-of-Staff brief and operational thread render; assistant exposes **no**
+approve/execute affordance; **Escape closes the assistant and returns focus**;
+persona selector retains its accessible name; asset (K-201) context preserved on
+persona switch; restricted route shows the honest restriction; and **no
+third-party network hosts** were contacted (governed truth boundary stays
+same-origin).
+
+### 10.4 Human visual review (full-size screenshots)
+- **Enterprise credibility:** restrained enterprise-blue header, neutral surface,
+  no gradients/glassmorphism, no oversized decorative cards. Reads as a mature
+  operations platform.
+- **Hierarchy & density:** clear breadcrumb → persona/role eyebrow → title →
+  brief → operational thread → planned workspace. Metric labels are small-caps
+  with **tabular numerals** ($1,620,156 · 68/100 · ~18 days).
+- **Cross-persona thread:** the Signal→Value thread persists K-201 and marks the
+  active persona's stage on every surface (verified on plant, reliability, and
+  the asset record).
+- **Light/dark parity:** dark theme is a consistent deep-navy treatment with
+  matching structure and contrast; no theme-only regressions observed.
+- **Responsive:** at 1024px the search field collapses to an icon, the thread
+  compresses with truncation, and brief metrics stay legible with no overflow;
+  1280/1440/1920 progressively relax density.
+- **Governance surfaces:** the assistant panel shows DEMO + "Audio is not
+  recorded", persona-aware context, grounded prompt copy, and no execute/approve
+  control. The restricted state states accountability and "changes your view,
+  not your authority".
+
+### 10.5 Correction applied (Gate 7 — V2 shell only)
+- **`src/components/v2/V2PersonaSelector.tsx`:** added Escape-to-close with focus
+  return to the trigger, focus-into-selected-option on open, and Up/Down roving
+  between options. This was surfaced by the keyboard-focus capture (the menu had
+  remained open after Escape) and closes an accessibility gap versus the
+  assistant. No other component was touched; the shell-guard test (no PersonaId
+  literals / no external URLs in shell components) still passes.
+
+### 10.6 Files changed in Phase 1.1
+- `scripts/qa-v2-shell.mjs` — Edge channel + fallbacks, 4 viewports, expanded
+  interaction states and assertions, precise response-based error detection,
+  output to `qa/v2-phase1/windows/`.
+- `src/components/v2/V2PersonaSelector.tsx` — accessibility fix above.
+- `docs/V2_PHASE_1_REPORT.md` — this addendum.
+- **No v1 / customer-facing source changed.** Screenshots are gitignored (`/qa/`).
+
+### 10.7 Post-fix verification
+`tsc --noEmit` ✓ · `next lint` ✓ (0 warnings) · `vitest run` ✓ **159/159** ·
+`seed:verify` ✓ (K-201 risk 68 / health 52 / 17.93 days / OEE 91.2% /
+exposure $1,620,156 — unchanged) · `next build` ✓ · `qa:v2` (Edge) ✓ **410/410**
+· `qa:v2:http` ✓ **32/32**.
+
+### 10.8 Remaining risks before Phase 2
+- Visual QA depends on a locally installed Edge (or Chromium); the restricted
+  ARM64 machine still cannot download Playwright browsers. Documented in the
+  script's fallback error.
+- App-level favicon 404 and the v1 brief pluralisation remain for a future v1
+  polish pass (not in v2 scope).
+- Phase 1 surfaces remain honest placeholders pending the Phase 2 workspaces.

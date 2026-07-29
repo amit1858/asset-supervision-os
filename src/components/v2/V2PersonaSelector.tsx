@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/layout/icons";
@@ -21,6 +21,8 @@ export function V2PersonaSelector() {
   const { personaId, assetTag, setPersona } = useOperationalContext();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const auth = getAuthorizationProvider();
   const permitted = auth.getPermittedPersonas();
@@ -31,6 +33,42 @@ export function V2PersonaSelector() {
     const t = setTimeout(() => setConfirm(null), 2600);
     return () => clearTimeout(t);
   }, [confirm]);
+
+  // When the menu opens, move focus to the selected option so keyboard users
+  // land inside the listbox (matches the governed assistant's focus handling).
+  useEffect(() => {
+    if (!open) return;
+    const opts = listRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]');
+    if (!opts || opts.length === 0) return;
+    const activeIdx = Array.from(opts).findIndex((o) => o.getAttribute("aria-selected") === "true");
+    opts[activeIdx >= 0 ? activeIdx : 0]?.focus();
+  }, [open]);
+
+  function closeAndReturnFocus() {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  function onMenuKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closeAndReturnFocus();
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const opts = Array.from(
+        listRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [],
+      );
+      if (opts.length === 0) return;
+      const idx = opts.indexOf(document.activeElement as HTMLButtonElement);
+      const next =
+        e.key === "ArrowDown"
+          ? (idx + 1) % opts.length
+          : (idx - 1 + opts.length) % opts.length;
+      opts[next]?.focus();
+    }
+  }
 
   function choose(id: PersonaId) {
     setOpen(false);
@@ -44,6 +82,7 @@ export function V2PersonaSelector() {
     <div className="relative">
       <button
         type="button"
+        ref={triggerRef}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Viewing as ${active.displayName}. Change persona.`}
@@ -66,8 +105,10 @@ export function V2PersonaSelector() {
             onClick={() => setOpen(false)}
           />
           <div
+            ref={listRef}
             role="listbox"
             aria-label="Select persona"
+            onKeyDown={onMenuKeyDown}
             className="absolute right-0 z-40 mt-1 w-72 overflow-hidden rounded-md border border-border bg-surface shadow-panel"
           >
             <div className="border-b border-border px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
