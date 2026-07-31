@@ -31,23 +31,60 @@ decision, the product decision wins — stop and confirm.
 
 ## 3. What you may change
 
-- **Allowed:** new files under `src/v2/**`, `src/components/v2/**`,
-  `src/app/v2/**`; new `src/v2/*.test.ts`; QA scripts under `scripts/**`;
-  documentation under `docs/**`.
+- **Allowed:** new files under `src/v2/**` (including a new **`src/v2/domain/**`**
+  governed-recomputation layer — value envelope, S1–S9 state machine, versioned
+  calculation ledger, evidence, transition authority guards, append-only audit),
+  `src/components/v2/**`, `src/app/v2/**`; new `src/v2/*.test.ts`; QA scripts
+  under `scripts/**`; documentation under `docs/**`.
 - **Extend, don't fork:** consume the existing engines, repository, registry,
-  capability model, brief service, and voice API. Do not copy business logic into
-  components. Do not retune engine constants for visual effect.
+  capability model, brief service, and voice API. The new `src/v2/domain/**` layer
+  **delegates every calculation to `engines/*`** (it records and orders results;
+  it never re-implements risk/OEE/ROTS/value math) and **references** existing
+  domain entity ids rather than copying entity fields. Do not copy business logic
+  into components. Do not retune engine constants for visual effect. See
+  `docs/V2_PHASE_2_K201_TECHNICAL_PLAN.md`.
+
+> **Correction:** an earlier draft framed Phase 2 as "presentation layer only /
+> no domain change." That is withdrawn. Phase 2 **does** add the governed domain
+> layer above, additively under `src/v2/domain/**`, while keeping v1 and the seed
+> untouched.
 
 ## 4. What you must not change
 
-- Any v1 / customer-facing route, component, layout, middleware, engine,
-  repository, or the persona registry's authority model.
-- Determinism: the seed and protected K-201 values (see the plan §9).
-- The governed-action boundary: no assistant-side approval, no autonomous
-  execution, no CMMS/inventory/Snowflake mutation, no write-back, no live speech,
-  no live external APIs, no Snowflake connection, no new dependencies.
+- Any v1 / customer-facing route, component, layout, middleware, engine, or
+  repository. **Determinism of the existing engines/seed is inviolable** — no
+  engine constant or seed number is retuned to match a copied spec.
+- The persona registry's authority model — **except** the one owner-approved
+  additive extension in Decision 2: a **new** authority capability
+  `endorse_high_exposure_reliability_decision` (`authority: true`) added to the
+  `Capability` union (`src/personas/types.ts`), `CAPABILITIES`
+  (`src/personas/capabilities.ts`), and the **Plant Manager**'s `approvalAuthority`
+  only (`src/personas/registry.ts`). No existing capability's meaning or
+  assignment changes; `approve_reliability_decision` is **not** reused for
+  endorsement. Persona switching still never grants authority.
+- Determinism: the seed and protected K-201 values (see the plan §9). Golden:
+  K-201 projected `$1,094,400`, portfolio projected value enabled `$1,449,400`;
+  `$1,458,140` is withdrawn and must not appear anywhere.
+- The governed-action boundary: no assistant-side approval, **no
+  endorsement/execution/validation by the assistant**, no CMMS/inventory/Snowflake
+  mutation, no write-back, no live speech, no live external APIs, no Snowflake
+  connection, no new dependencies.
 - The AI value split: no token/cost/runtime/ROTS content outside the AI Control
   Tower.
+
+New governed-domain policies are **versioned constants** under
+`src/v2/domain/policy/**` — `exposure-threshold.v1 = $1,000,000` (`≥` semantics;
+K-201 `$1,620,156` crosses it) and source-specific freshness — see
+`V2_PHASE_2_K201_TECHNICAL_PLAN.md` §9–§10. **Source mode and freshness are
+orthogonal:** `sourceMode` is typed as the existing `SourceMode`
+(`local`\|`snowflake`), **not** `IntegrationState`; integration health is a
+separate optional `integrationState?: IntegrationState`; `freshness`
+(`fresh|stale|missing|unknown`, **never** `synthetic`) is temporal. A synthetic
+observation may be fresh or stale; synthetic (when needed) is expressed via
+`integrationState`. Windows: sensor 15 min; production/OEE, CMMS,
+inventory, turnaround, financial 24 h, evaluated against the canonical
+`ANCHOR_NOW = "2026-07-27T00:00:00.000Z"` clock passed explicitly (never
+`Date.now()`).
 
 ## 5. Context & state rules
 

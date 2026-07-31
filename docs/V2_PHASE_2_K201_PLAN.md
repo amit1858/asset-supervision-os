@@ -24,10 +24,15 @@ value — while retaining plant, unit, asset, time-range, and decision context.
 
 ## 2. Non-negotiable guardrails (carried from Phase 0–1 decisions)
 
-- **Presentation layer only.** New depth consumes existing domain types,
-  repository, deterministic engines, persona registry, capability model, Chief of
-  Staff service, and voice API. No business logic is copied into components
-  (blueprint §11, decision §3).
+- **Engine reuse, not presentation-only.** *(Corrected — supersedes the earlier
+  "presentation layer only" framing.)* Phase 2 adds a **governed recomputation
+  domain layer** (shared value envelope, deterministic S1–S9 state machine,
+  versioned calculation ledger, evidence layer, capability-gated transitions,
+  append-only audit) under `src/v2/domain/**`. That layer **reuses** the existing
+  deterministic engines (`risk`/`oee`/`rots`) for every number — it never
+  re-implements the mathematics — and consumes existing domain types, repository,
+  persona registry, capability model, brief service, and voice API. No business
+  logic is copied into components. See `docs/V2_PHASE_2_K201_TECHNICAL_PLAN.md`.
 - **No customer-facing v1 change.** v1 routes remain the production experience
   until an approved, route-by-route cut-over. Phase 2 stays under `/v2/**`.
 - **Registry is the source of truth** for personas, navigation, capabilities, and
@@ -166,10 +171,18 @@ tone, never colour alone. Light/dark parity maintained.
 ## 9. Protected determinism (must remain unchanged)
 
 K-201: risk **68**, health **52**, projected **~17.93 days** to critical, OEE
-**91.2%** (A 97.9 / P 93.9 / Q 99.1), total exposure **$1,620,156**, disposition
-**immediate / high**. Value split: `valueAtStake` and `projectedEnabled` shown;
-`realised` stays unavailable until validated. Protected commits `94a89d0` /
-`559d89a` and the Phase 1 branch remain untouched.
+**91.2%** (A 97.9 / P 93.9 / Q 99.1), total exposure / value at stake
+**$1,620,156**, disposition **immediate / high**. Value split: `valueAtStake` and
+`projectedEnabled` shown; `realised` stays unavailable until validated. Protected
+commits `94a89d0` / `559d89a` and the Phase 1 branch remain untouched.
+
+**Governed projected value (owner reconciliation 2026-07-31):** the authoritative
+**projected value enabled = `$1,449,400`** (portfolio ROTS aggregate,
+`computeRots`); the **K-201 recommendation's** projected value = **`$1,094,400`**
+(`analyzeK201().projectedFailureExposureUsd`). These come from existing engines —
+no seed/engine change. The figure `$1,458,140` and any `× 0.90` factor are
+**withdrawn**. Portfolio value at stake (ROTS) = `$2,304,156`. See
+`V2_PHASE_2_K201_TECHNICAL_PLAN.md` §8.
 
 ## 10. Acceptance criteria for Phase 2
 
@@ -192,3 +205,16 @@ K-201: risk **68**, health **52**, projected **~17.93 days** to critical, OEE
   as two gates — recommend together to keep the K-201 blocker thread coherent.
 - **Out-of-scope v1 polish** (favicon 404, brief count pluralisation) remains
   deferred and must not be pulled into Phase 2.
+- **Owner decisions recorded (2026-07-31):** scope-specific projected values —
+  K-201 surfaces attach `$1,094,400` ("K-201 projected value enabled"), portfolio
+  surfaces show `$1,449,400` ("Portfolio projected value enabled — 6
+  recommendations"), value at stake `$1,620,156` kept distinct (‑`$1,458,140`
+  withdrawn); new authority capability `endorse_high_exposure_reliability_decision`
+  (approval ≠ endorsement) gated by `exposure-threshold.v1 = $1,000,000` (`≥`);
+  source mode (existing `SourceMode` `local`\|`snowflake`, with optional separate
+  `integrationState`) is orthogonal to freshness
+  (`fresh|stale|missing|unknown`, never `synthetic`; sensor 15 min, others 24 h)
+  against the canonical `ANCHOR_NOW = 2026-07-27` clock; governance layer under
+  `src/v2/domain/**`; `trustClassification` derived (non-persisted) from
+  `Provenance`. Full detail and the decision table are in
+  `V2_PHASE_2_K201_TECHNICAL_PLAN.md` §6, §8–§15.
