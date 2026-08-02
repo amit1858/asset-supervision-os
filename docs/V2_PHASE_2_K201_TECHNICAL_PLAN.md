@@ -11,6 +11,42 @@ after this plan is reviewed and approved.
 
 ---
 
+## Owner reconciliation — Slice 2.1a as built — 2026-08-02
+
+Slice 2.1a is implemented and committed (`5960e06`, eight files under
+`src/v2/domain/**`). Owner review during implementation changed three envelope
+contracts from the illustrative signatures drafted below. **The implementation is
+authoritative**; this document is corrected to match it.
+
+| # | Drafted below | As built (authoritative) |
+|---|---|---|
+| 1 | `ValueEnvelope.integrationState?: IntegrationState` | **Removed.** `ValueEnvelope` does not carry integration health. There is no concrete Slice 2.1a consumer, and forcing integration health onto every governed value is wrong. Integration health stays in the existing source/integration model (`src/domain/integration.ts`) and will be exposed by a **separate source/integration assessment** when a consumer is designed. `ValueEnvelope` never imports `IntegrationState`. |
+| 2 | `ValueEnvelope.supersededByEventId: string \| null` | **Replaced by forward-only `supersedesId: string \| null`.** A new version records the identity of the version it replaces. A prior envelope is **never** backward-stamped, re-written, or re-emitted as a modified copy; it stays byte-for-byte unchanged and referenceable. Whether a version has itself been superseded is **derived** from the successor relationship in the append-only ledger (Slice 2.1c). |
+| 3 | `evidenceType` as the freshness policy selector | **Renamed `freshnessClass`**, a closed union (`condition_signal`, `production_oee`, `cmms_work_order`, `inventory_material`, `turnaround_readiness`, `financial_value`). Precedence: an explicit `freshnessClass` selects the governed window; otherwise a conservative default is derived from `SourceKey`; an ungoverned source resolves to `unknown` and is never guessed. `historian` defaults to `condition_signal` (15 min), so production/OEE callers must state `production_oee` explicitly. `freshness.v1` remains the policy version. |
+
+**The five-axis orthogonality doctrine is unchanged and still governs.** What is
+corrected is only *which axes `ValueEnvelope` carries*:
+
+| Axis | Type | Carried by `ValueEnvelope`? |
+|---|---|---|
+| `sourceMode` | `SourceMode` (`local`\|`snowflake`) | **Yes** |
+| `freshness` | `FreshnessState` (`fresh`\|`stale`\|`missing`\|`unknown`, never `synthetic`) | **Yes** |
+| `provenance` | `Provenance` | **Yes** |
+| `trustClassification` | derived from `provenance` | **Yes** — derived internally; callers cannot supply or override it |
+| `integrationState` | `IntegrationState` | **No** — separate source/integration assessment |
+
+Other 2.1a contracts as built: the envelope is a discriminated union on
+`status` (`available` with `value: T`, `unavailable` with `value: null` **and** a
+non-empty `unavailableReason`); numeric `0` is a legitimate available value; the
+envelope object and its defensively-copied `evidenceIds` are frozen, while the
+generic payload `T` is stored by reference and is **not** deep-cloned or
+deep-frozen; there is no public `markSuperseded` helper, because a second,
+divergent copy of a prior version must never exist.
+
+Sections §3 (E1), §10.2, §11, §12.3, §13 and §15.3 below are corrected in place.
+
+---
+
 ## 0. Correction to the earlier "presentation-only" assumption
 
 The earlier Phase 2 documents (`docs/V2_PHASE_2_K201_PLAN.md`,
@@ -88,7 +124,7 @@ existing entity types.
 
 | # | Extension | Why it is new | Reuses |
 |---|---|---|---|
-| E1 | **Shared value envelope** (`id`, `version`, `status`, `trustClassification`, `provenance`, `freshness`, `createdByEventId`, `supersededByEventId`) | No unified envelope exists; provenance and freshness are separate today | `Provenance`, `DataFreshness`, `ValueStatus` |
+| E1 | **Shared value envelope** (`id`, `version`, `status`, `trustClassification`, `provenance`, `sourceMode`, `freshness`, `createdByEventId`, forward-only `supersedesId`) | No unified envelope exists; provenance and freshness are separate today | `Provenance`, `DataFreshness`, `ValueStatus` |
 | E2 | **Governed event log** (append-only, typed events per transition) | `Recommendation.status` is a mutable field, not event-sourced; there is no event record | Existing entity ids referenced by events |
 | E3 | **Deterministic state machine S1–S9** (`SIGNAL_DETECTED` → … → `VALUE_VALIDATION_PENDING`) with a pure `next(state, event)` reducer | No state machine exists anywhere | Engines invoked only on declared triggers |
 | E4 | **Calculation-record ledger** (versioned, immutable: `inputsSnapshot`, `engineVersion`, `result`, `previousRecordId`, `supersededBy`, trigger event) | Engines return fresh results; nothing persists a versioned, superseding calc history | `computeRisk`/`computeOee` outputs stored verbatim |
@@ -162,8 +198,9 @@ Rules:
 - **RD-3 Freshness & source dimensions.** No universal 24h window. Source-specific,
   configurable policies evaluated against the deterministic `asOf`. **Five
   orthogonal dimensions** (Decision 4, corrected): `sourceMode: SourceMode`
-  (`local`/`snowflake` — how/where sourced); `integrationState?: IntegrationState`
-  (integration health, optional, only with a concrete consumer); `freshness:
+  (`local`/`snowflake` — how/where sourced); `integrationState: IntegrationState`
+  (integration health — a **separate source/integration assessment**, *not* a
+  `ValueEnvelope` field; see the 2026-08-02 reconciliation); `freshness:
   FreshnessState` (`fresh`/`stale`/`missing`/`unknown`, **never** `synthetic`);
   `provenance`; derived `trustClassification`. `sourceMode` is **not** typed as
   `IntegrationState`. §10.2.
@@ -353,38 +390,47 @@ corrected).** `ValueEnvelope.sourceMode` is typed as the existing **`SourceMode`
 sourced*. **`IntegrationState` is NOT used as the `sourceMode` type**: it mixes
 operational integration conditions (`connected | partial | not_connected | stale |
 error | synthetic`) and typing `sourceMode` as `IntegrationState` would reintroduce
-the orthogonality problem the correction forbids. Integration health is carried
-**separately and optionally** as `integrationState?: IntegrationState`, and only
-where a concrete consumer genuinely requires it (not added merely because the type
-exists). The five intended independent dimensions:
+the orthogonality problem the correction forbids. Integration health is assessed
+**separately**, by the existing source/integration model
+(`src/domain/integration.ts`) and a future source/integration assessment — it is
+**not** a field of `ValueEnvelope` (owner reconciliation, 2026-08-02). The five
+intended independent dimensions, and which of them the envelope carries:
 
-| Dimension | Type | Meaning |
-|---|---|---|
-| `sourceMode` | `SourceMode` (`local`\|`snowflake`) | how / where the data was sourced |
-| `integrationState?` | `IntegrationState` | health / availability of the source integration (optional; add only with a concrete consumer) |
-| `freshness` | `FreshnessState` | temporal freshness relative to explicit `asOf` |
-| `provenance` | `Provenance` | epistemic origin of the value |
-| `trustClassification` | derived | presentation mapping only (not persisted) |
+| Dimension | Type | Meaning | On `ValueEnvelope`? |
+|---|---|---|---|
+| `sourceMode` | `SourceMode` (`local`\|`snowflake`) | how / where the data was sourced | **yes** |
+| `integrationState` | `IntegrationState` | health / availability of the source integration | **no** — separate source/integration assessment |
+| `freshness` | `FreshnessState` | temporal freshness relative to explicit `asOf` | **yes** |
+| `provenance` | `Provenance` | epistemic origin of the value | **yes** |
+| `trustClassification` | derived | presentation mapping only (not persisted, not caller-suppliable) | **yes**, derived internally |
 
-In the reset/demo `sourceMode = "local"`; the synthetic label (when a consumer
-needs it) comes from `integrationState = "synthetic"`, never from `sourceMode` or
-`freshness`. Presentation reuses `src/v2/source.ts` (`describeSourceMode`,
+In the reset/demo `sourceMode = "local"`; the synthetic label comes from the
+source/integration assessment's `integrationState = "synthetic"`, never from
+`sourceMode`, `freshness`, or a `ValueEnvelope` field. Presentation reuses
+`src/v2/source.ts` (`describeSourceMode`,
 `describeRouteSource`). All of `SourceMode`, `IntegrationState`, `SourceState`,
 `SourceKey` are **left unchanged** and imported, never redefined.
 
-**10.3 Freshness (value-temporal only).** `freshness.v1` defines per-evidence-type
+**10.3 Freshness (value-temporal only).** `freshness.v1` defines per-`freshnessClass`
 windows evaluated against `asOf`. `resolveFreshness()` returns a **new** minimal
 value-temporal state `FreshnessState = "fresh" | "stale" | "missing" | "unknown"`
 and **never returns `synthetic`**.
 
-| Evidence / source type | Freshness window | `SourceKey` (existing `integration.ts`) |
+| `FreshnessClass` (policy selector) | Freshness window | Default for `SourceKey` (existing `integration.ts`) |
 |---|---|---|
-| Condition / sensor evidence | **15 minutes** | `historian` |
-| Production / OEE evidence | **24 hours** | `historian` (production) |
-| CMMS / work orders | **24 hours** | `cmms` |
-| Inventory / material evidence | **24 hours** | `inventory`, `procurement` |
-| Turnaround readiness | **24 hours** | `turnaround_scheduling` |
-| Financial / value evidence | **24 hours** | derived (calculation) |
+| `condition_signal` — condition / sensor evidence | **15 minutes** | `historian` (default) |
+| `production_oee` — production / OEE evidence | **24 hours** | `historian` (must be stated explicitly) |
+| `cmms_work_order` — CMMS / work orders | **24 hours** | `cmms` |
+| `inventory_material` — inventory / material evidence | **24 hours** | `inventory`, `procurement` |
+| `turnaround_readiness` — turnaround readiness | **24 hours** | `turnaround_scheduling` |
+| `financial_value` — financial / value evidence | **24 hours** | derived (calculation); no `SourceKey` default |
+
+The **class**, not the source key, selects the window, because one `SourceKey` can
+supply more than one class — the historian supplies both 15-minute condition
+signals and 24-hour production/OEE observations. Precedence: an explicit
+`freshnessClass` wins; otherwise the conservative default for the `SourceKey`
+applies; otherwise no window is governed and the result is `unknown` — never a
+guess. `shift_log`, `ai_runtime` and `local_seed` have no governed default.
 
 Evaluation (pure): `missing` when no evidence / no `capturedAt`; `unknown` when
 `asOf` or the window cannot be resolved; otherwise `fresh` if
@@ -409,10 +455,10 @@ derived mapping (C1/RD-5) — pure, node-environment, dependency-free, engine-fr
 
 | Proposed file (NEW, under `src/v2/domain/**`) | Purpose | Reuses (import, never fork) |
 |---|---|---|
-| `src/v2/domain/envelope.ts` | `ValueEnvelope<T>` type: `id`, `version` (monotonic int), `status` (`available` \| `unavailable`), `value \| null`, `trustClassification`, `provenance`, **`sourceMode: SourceMode`** (`local`\|`snowflake` — how/where sourced), **optional `integrationState?: IntegrationState`** (only where a concrete consumer needs it), **`freshness: FreshnessState`**, `formulaVersion`, `evidenceIds`, `asOf`, `capturedAt`, `producedAt`, `createdByEventId`, `supersededByEventId`; plus pure constructors `makeEnvelope()` / `supersede()` / `markUnavailable()`. **Immutable:** `supersede()` returns a NEW envelope; the prior is never mutated and stays referenceable; `unavailable` is never `0`/empty. **No calculation logic in the envelope.** | `SourceMode` from `@/context/types`; `Provenance`, `ValueStatus` from `@/domain/enums`; `IntegrationState` from `@/domain/integration` (only if `integrationState` is used); `FreshnessState`, `TrustClassification` from siblings |
+| `src/v2/domain/envelope.ts` | `ValueEnvelope<T>` type: `id`, `version` (monotonic int), forward-only `supersedesId`, `status` (`available` \| `unavailable`), `value \| null` (+ non-empty `unavailableReason` when unavailable), `trustClassification` (**derived internally; never a caller input**), `provenance`, **`sourceMode: SourceMode`** (`local`\|`snowflake` — how/where sourced), **`freshness: FreshnessState`**, `formulaVersion`, `evidenceIds`, `asOf`, `capturedAt`, `producedAt`, `createdByEventId`; plus pure constructors `makeEnvelope()` / `supersede()` / `markUnavailable()` and the `isAvailable()` guard. **No `integrationState`** — integration health is a separate source/integration assessment (reconciliation, 2026-08-02). **Immutable:** `supersede()` returns a NEW envelope; the prior is never mutated and never backward-stamped, and stays referenceable; `unavailable` is never `0`/empty. **No calculation logic in the envelope.** | `SourceMode` from `@/context/types`; `Provenance` from `@/domain/enums`; `FreshnessState`, `TrustClassification` from siblings |
 | `src/v2/domain/trust.ts` | `TrustClassification` type (`measured_fact` \| `deterministic_calculation` \| `prediction` \| `ai_explanation` \| `human_decision` \| `unknown`) + pure `trustFromProvenance(p): TrustClassification` mapping (§4 C1). **Derived only** — never persisted, never authoritative input; unknown/unexpected input **fails safe** to `unknown`. | `Provenance` from `@/domain/enums` |
-| `src/v2/domain/freshness-state.ts` | `FreshnessState` (`fresh` \| `stale` \| `missing` \| `unknown`) + pure `resolveFreshness({sourceKey, capturedAt, asOf})` reading `freshness.v1` windows (§10). **`asOf` is an explicit parameter — never `Date.now()`; never returns `synthetic`** (source mode is separate). Data-only in 2.1a; no I/O. | `SourceKey` from `@/domain/integration` |
-| `src/v2/domain/policy/freshness.ts` | `freshness.v1` window table (§10) as a named, versioned, typed constant. | — |
+| `src/v2/domain/freshness-state.ts` | `FreshnessState` (`fresh` \| `stale` \| `missing` \| `unknown`) + pure `resolveFreshness({sourceKey, freshnessClass?, capturedAt, asOf})` reading `freshness.v1` windows (§10). **`asOf` is an explicit required parameter — never `Date.now()`; never returns `synthetic`** (source mode is separate). Data-only in 2.1a; no I/O. | `SourceKey` from `@/domain/integration`; `FreshnessClass` from `./policy/freshness` |
+| `src/v2/domain/policy/freshness.ts` | `freshness.v1` (§10) as a named, versioned, typed constant: the `FreshnessClass` union, the window table, the conservative per-`SourceKey` default class, and `freshnessWindowMs()`. | `SourceKey` from `@/domain/integration` |
 | `src/v2/domain/index.ts` | Barrel re-export of the above for later slices. | — |
 | `src/v2/domain/envelope.test.ts` | Unit tests for envelope construction, supersession immutability (prior unchanged & referenceable), `unavailable ≠ 0`, sourceMode + freshness carried separately. | `vitest` |
 | `src/v2/domain/trust.test.ts` | Unit tests: every `Provenance → TrustClassification` pair is deterministic; unknown input fails safe to `unknown`; projected-vs-realised classification separation. | `vitest` |
@@ -463,9 +509,9 @@ Full fixture-bound tests land in 2.1e; the contracts below are defined now.
   integration state or provenance — it accepts only `sourceKey`, `capturedAt` (or
   missing), and `asOf`. A synthetic observation may be `fresh` or `stale`.
 - Given seed data with a fresh `capturedAt`, Then `freshness = fresh` while
-  `sourceMode = "local"` and (if a consumer needs it) `integrationState =
-  "synthetic"` — the synthetic label lives on `integrationState`, never on
-  `freshness` or `sourceMode`.
+  `sourceMode = "local"` and the separate source/integration assessment reports
+  `integrationState = "synthetic"` — the synthetic label lives on that assessment,
+  never on `freshness`, `sourceMode`, or a `ValueEnvelope` field.
 - Given no evidence, Then `missing` — never `stale`, never `0`.
 - Given `asOf`/window unresolvable, Then `unknown` — distinct from `missing`.
 
@@ -516,7 +562,7 @@ Full fixture-bound tests land in 2.1e; the contracts below are defined now.
 |---|---|---|---|
 | 1 | Scope-specific projected values (Decision 1): K-201 surfaces attach **$1,094,400** ("K-201 projected value enabled"); portfolio surfaces show **$1,449,400** ("Portfolio projected value enabled — 6 recommendations"); value at stake **$1,620,156** kept visually distinct; **$1,458,140** + 0.90 factor withdrawn; none presented as AI-created | §8.4, §12.5 | C5 / RQ-1 resolved |
 | 2 | Approval ≠ endorsement; **new** `endorse_high_exposure_reliability_decision` (Plant Manager only); **`exposure-threshold.v1 = $1,000,000`**, `≥` semantics, boundary at exactly $1M requires endorsement, K-201 $1,620,156 crosses; named versioned domain policy, not a UI conditional; neither persona selection nor assistant grants authority | §9, §12.1–12.2 | C4 / RQ-2 resolved |
-| 3 | Five orthogonal source/value dimensions (Decision 4, corrected): `sourceMode: SourceMode` (`local`\|`snowflake`, existing type — **not** `IntegrationState`); `integrationState?: IntegrationState` optional, only with a concrete consumer; `freshness: FreshnessState` (`fresh`/`stale`/`missing`/`unknown`), never `synthetic`; `provenance`; derived `trustClassification`. Windows sensor 15 min, others 24 h; `asOf = ANCHOR_NOW`, passed explicitly, never `Date.now()` | §10.2, §12.3 | freshness / RQ-3 resolved |
+| 3 | Five orthogonal source/value dimensions (Decision 4, corrected): `sourceMode: SourceMode` (`local`\|`snowflake`, existing type — **not** `IntegrationState`); `integrationState: IntegrationState` as a **separate source/integration assessment**, *not* a `ValueEnvelope` field (reconciliation 2026-08-02); `freshness: FreshnessState` (`fresh`/`stale`/`missing`/`unknown`), never `synthetic`; `provenance`; derived `trustClassification`. Windows sensor 15 min, others 24 h, selected by `freshnessClass`; `asOf = ANCHOR_NOW`, passed explicitly, never `Date.now()` | §10.2, §12.3 | freshness / RQ-3 resolved |
 | 4 | New governance layer under `src/v2/domain/**`; reuse, never fork, `Recommendation`/`RecommendationEvidence`/`HumanDecision`/`OperationalOutcome`/`Provenance`/risk/OEE/ROTS/K-201 logic | §5, §11 | C6 / C7 |
 | 5 | `trustClassification` is a **derived, presentation-facing** mapping over `Provenance`; never persisted/authoritative; unknown input fails safe to `unknown` | §4 C1, §11, §12.3b | C1 |
 | 6 | Governed recompute semantics: approval → decision state only; endorsement → satisfies high-exposure gate; execution evidence → operational state; sensor → risk/health/TTC; production → OEE; material → readiness/schedule-exposure; realised value unavailable until governed confirm-outcome with evidence; every recompute appends an immutable calculation record; history never overwritten | §8.3, §12.4, E3–E5/E7 | governed recompute |
@@ -604,21 +650,23 @@ export function trustFromProvenance(value: Provenance | unknown): TrustClassific
 // src/v2/domain/envelope.ts
 import type { SourceMode } from "@/context/types";       // "local" | "snowflake"
 import type { Provenance } from "@/domain/enums";
-import type { IntegrationState } from "@/domain/integration"; // only for optional integrationState
 import type { FreshnessState } from "./freshness-state";
 import type { TrustClassification } from "./trust";
 
 export type EnvelopeStatus = "available" | "unavailable";
 
+// As built: a discriminated union on `status`, so an unavailable value always has
+// value === null AND a non-empty reason, and an available value never carries one.
 export interface ValueEnvelope<T> {
-  readonly id: string;
+  readonly id: string;                      // identity of THIS version
   readonly version: number;                 // monotonic; supersede => +1
+  readonly supersedesId: string | null;     // forward-only link to the replaced version
   readonly status: EnvelopeStatus;
   readonly value: T | null;                 // null when unavailable (never 0/fabricated)
-  readonly trustClassification: TrustClassification;
+  readonly unavailableReason?: string;      // required & non-empty when unavailable
+  readonly trustClassification: TrustClassification; // DERIVED; never a caller input
   readonly provenance: Provenance;
   readonly sourceMode: SourceMode;          // how/where sourced (local|snowflake)
-  readonly integrationState?: IntegrationState; // OPTIONAL: integration health; add only with a concrete consumer
   readonly freshness: FreshnessState;       // temporal, relative to asOf (separate axis)
   readonly formulaVersion: string;          // e.g. "projected-value-enabled@v1"
   readonly evidenceIds: readonly string[];
@@ -626,20 +674,35 @@ export interface ValueEnvelope<T> {
   readonly capturedAt: string | null;
   readonly producedAt: string;
   readonly createdByEventId: string;
-  readonly supersededByEventId: string | null;
 }
+// NOTE: there is deliberately NO `integrationState` field (integration health is a
+// separate source/integration assessment) and NO `supersededByEventId` — a prior
+// envelope is never backward-stamped. Whether a version has been superseded is
+// derived from the successor relationship in the append-only ledger (Slice 2.1c).
 
 // Pure constructors — no calculation logic, no mutation of prior versions.
 export function makeEnvelope<T>(init: /* … */ unknown): ValueEnvelope<T>;
 export function supersede<T>(prev: ValueEnvelope<T>, next: /* … */ unknown): ValueEnvelope<T>; // returns NEW; prev unchanged
-export function markUnavailable<T>(prev: ValueEnvelope<T>, reason?: string): ValueEnvelope<T>;   // value=null, status="unavailable"
+export function markUnavailable<T>(prev: ValueEnvelope<T>, reason: string, opts: /* … */ unknown): ValueEnvelope<T>; // value=null, status="unavailable"
+export function isAvailable<T>(e: ValueEnvelope<T>): boolean; // type guard
+// There is no `markSuperseded` helper: a second, divergent copy of a prior version
+// must never exist.
 ```
+
+**Immutability as built.** The envelope object is frozen and `evidenceIds` is
+defensively copied and frozen. The generic payload `T` is stored **by reference**
+— it is neither cloned, deep-frozen nor mutated — so deep immutability of `T` is
+**not** claimed and caller-owned payload objects remain caller-owned.
 
 **No-duplication confirmation (task D):** `SourceMode` (`local|snowflake`),
 `IntegrationState`, `SourceKey`, `SourceState`, `Provenance`, `ValueStatus`, and
-`DataFreshness` (`live|recent|stale|offline`) are all **imported / left
-unchanged**. `sourceMode` uses the existing `SourceMode` (not `IntegrationState`,
-which would reintroduce the orthogonality problem). Only two genuinely new, minimal
+`DataFreshness` (`live|recent|stale|offline`) are all **left unchanged**, and
+imported where actually used (2.1a imports `SourceMode`, `Provenance` and
+`SourceKey`; `IntegrationState` and `ValueStatus` are referenced by the wider
+model but are not envelope fields). `sourceMode` uses the existing `SourceMode`
+(not `IntegrationState`,
+which would reintroduce the orthogonality problem). Only three genuinely new, minimal
 types are introduced — `FreshnessState` (value-temporal, adds `missing`/`unknown`
-absent from `DataFreshness`) and `TrustClassification` (derived presentation
+absent from `DataFreshness`), `FreshnessClass` (the `freshness.v1` policy selector)
+and `TrustClassification` (derived presentation
 mapping) — each justified in §10.3 and §4 C1.

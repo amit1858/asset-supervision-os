@@ -211,9 +211,10 @@ no seed/engine change. The figure `$1,458,140` and any `× 0.90` factor are
   recommendations"), value at stake `$1,620,156` kept distinct (‑`$1,458,140`
   withdrawn); new authority capability `endorse_high_exposure_reliability_decision`
   (approval ≠ endorsement) gated by `exposure-threshold.v1 = $1,000,000` (`≥`);
-  source mode (existing `SourceMode` `local`\|`snowflake`, with optional separate
-  `integrationState`) is orthogonal to freshness
-  (`fresh|stale|missing|unknown`, never `synthetic`; sensor 15 min, others 24 h)
+  source mode (existing `SourceMode` `local`\|`snowflake`, with integration health
+  assessed separately and **not** carried on `ValueEnvelope`) is orthogonal to freshness
+  (`fresh|stale|missing|unknown`, never `synthetic`; `freshnessClass` selects the
+  window — condition signals 15 min, others 24 h)
   against the canonical `ANCHOR_NOW = 2026-07-27` clock; governance layer under
   `src/v2/domain/**`; `trustClassification` derived (non-persisted) from
   `Provenance`. Full detail and the decision table are in

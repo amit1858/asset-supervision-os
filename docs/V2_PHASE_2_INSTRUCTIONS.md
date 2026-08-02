@@ -78,10 +78,12 @@ K-201 `$1,620,156` crosses it) and source-specific freshness — see
 `V2_PHASE_2_K201_TECHNICAL_PLAN.md` §9–§10. **Source mode and freshness are
 orthogonal:** `sourceMode` is typed as the existing `SourceMode`
 (`local`\|`snowflake`), **not** `IntegrationState`; integration health is a
-separate optional `integrationState?: IntegrationState`; `freshness`
+separate source/integration assessment and is **not** a `ValueEnvelope` field
+(owner reconciliation — Slice 2.1a as built — 2026-08-02); `freshness`
 (`fresh|stale|missing|unknown`, **never** `synthetic`) is temporal. A synthetic
-observation may be fresh or stale; synthetic (when needed) is expressed via
-`integrationState`. Windows: sensor 15 min; production/OEE, CMMS,
+observation may be fresh or stale; synthetic disclosure is expressed by that
+separate integration assessment. Windows are selected by `freshnessClass`:
+condition signals 15 min; production/OEE, CMMS,
 inventory, turnaround, financial 24 h, evaluated against the canonical
 `ANCHOR_NOW = "2026-07-27T00:00:00.000Z"` clock passed explicitly (never
 `Date.now()`).
