@@ -67,8 +67,23 @@ export type DecisionLifecycleStatus =
  * Evidence axis. It is ASSESSMENT-SCOPED: only `AssessmentComputed` can change
  * it, and it describes that assessment's evidence rather than the aggregate's
  * evidence in general. Missing evidence is a first-class state, never a zero.
+ *
+ * - `sufficient`  — the assessment envelope is POLICY-RESOLVABLE: available,
+ *                   fresh, and evaluated at the governing instant.
+ * - `stale`       — a real value arrived, but it is outside its freshness
+ *                   window or was evaluated at a different instant. It is
+ *                   recorded and disclosed, and it governs nothing: it cannot
+ *                   resolve `exposure-threshold.v1`.
+ * - `unavailable` — no value at all. Never read as zero.
  */
-export type EvidenceQuality = "sufficient" | "unavailable";
+export type AssessmentEvidenceQuality = "sufficient" | "stale" | "unavailable";
+
+/**
+ * Legacy alias for `AssessmentEvidenceQuality`. It is the same type under its
+ * former name, retained only so the module barrel keeps compiling; it is not a
+ * second evidence axis and carries no independent meaning.
+ */
+export type EvidenceQuality = AssessmentEvidenceQuality;
 
 /** Operating axis. Changed only by `SpeedReductionExecuted`; never a phase. */
 export type OperatingState = "nominal" | "speed_reduced";
@@ -100,13 +115,17 @@ export interface LifecycleSnapshot {
 
   readonly decisionStatus: DecisionLifecycleStatus | null;
   /** Assessment-scoped: evidence quality of the latest assessment attempt. */
-  readonly assessmentEvidenceQuality: EvidenceQuality | null;
+  readonly assessmentEvidenceQuality: AssessmentEvidenceQuality | null;
   readonly operatingState: OperatingState;
   readonly outcomeValidationStatus: OutcomeValidationStatus | null;
 
   /** Most recent assessment ATTEMPT, whether or not its evidence was available. */
   readonly latestAssessmentId: string | null;
-  /** Last assessment whose envelope was AVAILABLE — never overwritten by a failure. */
+  /**
+   * Last assessment that was POLICY-RESOLVABLE — never overwritten by a failed
+   * or stale attempt. This is what distinguishes the last VALID governed
+   * assessment from the latest assessment attempt.
+   */
   readonly governingAssessmentId: string | null;
 
   readonly currentRecommendationId: string | null;
@@ -122,7 +141,7 @@ export interface LifecycleSnapshot {
   readonly currentOutcomeEvidenceRecordId: string | null;
   readonly currentOutcomeId: string | null;
 
-  /** Governed value at stake from the last available assessment. */
+  /** Governed value at stake from the last policy-resolvable assessment. */
   readonly valueAtStake: ValueEnvelope<number> | null;
   /** Once-guard: `decision_projected_value` is requested at most once. */
   readonly projectedValueEmitted: boolean;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PHASE_ORDER,
   phaseIndex,
+  type AssessmentEvidenceQuality,
   type LifecyclePhase,
   type LifecycleSnapshot,
 } from "./lifecycle";
@@ -104,5 +105,40 @@ describe("LifecycleSnapshot contract", () => {
     expect(keys).not.toContain("workOrder");
     expect(keys).not.toContain("execution");
     expect(keys).not.toContain("evidence");
+  });
+
+  it("keeps assessment evidence quality on ONE assessment-scoped field", () => {
+    const qualities: AssessmentEvidenceQuality[] = ["sufficient", "stale", "unavailable"];
+    expect(new Set(qualities).size).toBe(3);
+    for (const quality of qualities) {
+      const snapshot: Pick<LifecycleSnapshot, "assessmentEvidenceQuality"> = {
+        assessmentEvidenceQuality: quality,
+      };
+      expect(snapshot.assessmentEvidenceQuality).toBe(quality);
+    }
+  });
+
+  it("admits a null assessment evidence quality before any assessment", () => {
+    const snapshot: Pick<LifecycleSnapshot, "assessmentEvidenceQuality"> = {
+      assessmentEvidenceQuality: null,
+    };
+    expect(snapshot.assessmentEvidenceQuality).toBeNull();
+  });
+
+  it("does not model staleness as a phase or as a second evidence axis", () => {
+    expect(PHASE_ORDER).not.toContain("EVIDENCE_STALE");
+    const snapshot: Pick<
+      LifecycleSnapshot,
+      "assessmentEvidenceQuality" | "latestAssessmentId" | "governingAssessmentId"
+    > = {
+      assessmentEvidenceQuality: "stale",
+      latestAssessmentId: "assess-3",
+      governingAssessmentId: "assess-2",
+    };
+    const keys = Object.keys(snapshot);
+    expect(keys).not.toContain("evidenceStaleness");
+    expect(keys).not.toContain("latestAssessmentEvidenceQuality");
+    // The latest ATTEMPT and the GOVERNING assessment are separately addressable.
+    expect(snapshot.latestAssessmentId).not.toBe(snapshot.governingAssessmentId);
   });
 });

@@ -11,6 +11,8 @@
  * Each kind is bound to its own trigger; no trigger recomputes everything.
  */
 
+import type { GovernedEventType } from "./events";
+
 export type RecomputeRequestKind =
   /** Health / risk / time-to-critical. Only condition signals trigger it. */
   | "asset_assessment"
@@ -30,6 +32,14 @@ export interface RecomputeRequest {
   readonly assetId: string;
   /** The accepted governed event that justified the request. */
   readonly requestedByEventId: string;
+  /**
+   * The TYPE of the accepted governed event that justified the request.
+   *
+   * The consumer must be able to check that a request kind was emitted by a
+   * trigger permitted to emit it, without reloading the event log. Carrying the
+   * id alone would force the calculation layer to resolve the event itself.
+   */
+  readonly requestedByEventType: GovernedEventType;
   /** Explicit evaluation instant carried from the event; never `Date.now()`. */
   readonly asOf: string;
 }

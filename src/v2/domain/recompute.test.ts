@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { GovernedEventType } from "./events";
 import { makeRecomputeRequest, type RecomputeRequest, type RecomputeRequestKind } from "./recompute";
 
 /**
@@ -14,6 +15,7 @@ describe("RecomputeRequest", () => {
       kind: "asset_assessment",
       assetId: "K-201",
       requestedByEventId: "evt-1",
+      requestedByEventType: "ConditionSignalIngested",
       asOf: ANCHOR,
     });
 
@@ -22,6 +24,7 @@ describe("RecomputeRequest", () => {
       "assetId",
       "kind",
       "requestedByEventId",
+      "requestedByEventType",
     ]);
   });
 
@@ -30,6 +33,7 @@ describe("RecomputeRequest", () => {
       kind: "realised_value",
       assetId: "K-201",
       requestedByEventId: "evt-9",
+      requestedByEventType: "OutcomeConfirmed",
       asOf: ANCHOR,
     });
     expect(Object.isFrozen(request)).toBe(true);
@@ -40,6 +44,7 @@ describe("RecomputeRequest", () => {
       kind: "decision_projected_value",
       assetId: "K-201",
       requestedByEventId: "evt-5",
+      requestedByEventType: "EndorsementGranted",
       asOf: ANCHOR,
     };
     const request = makeRecomputeRequest(input);
@@ -52,6 +57,7 @@ describe("RecomputeRequest", () => {
       kind: "asset_assessment",
       assetId: "K-201",
       requestedByEventId: "evt-1",
+      requestedByEventType: "ConditionSignalIngested",
       asOf: ANCHOR,
     });
     expect(request).not.toHaveProperty("value");
@@ -73,9 +79,47 @@ describe("RecomputeRequest", () => {
         kind,
         assetId: "K-201",
         requestedByEventId: "evt-1",
+        requestedByEventType: "ConditionSignalIngested",
         asOf: ANCHOR,
       }).kind).toBe(kind);
     }
     expect(new Set(kinds).size).toBe(6);
+  });
+
+  it("carries the exact governed event type that emitted it", () => {
+    const pairs: ReadonlyArray<[RecomputeRequestKind, GovernedEventType]> = [
+      ["asset_assessment", "ConditionSignalIngested"],
+      ["oee_reconciliation", "ProductionObservationIngested"],
+      ["decision_projected_value", "DecisionApproved"],
+      ["decision_projected_value", "EndorsementGranted"],
+      ["decision_projected_value", "AssessmentComputed"],
+      ["work_readiness", "WorkOrderPlanned"],
+      ["work_readiness", "MaterialsChecked"],
+      ["turnaround_lead_time_fit", "TurnaroundScopeRetained"],
+      ["realised_value", "OutcomeConfirmed"],
+    ];
+    for (const [kind, type] of pairs) {
+      const request = makeRecomputeRequest({
+        kind,
+        assetId: "K-201",
+        requestedByEventId: "evt-1",
+        requestedByEventType: type,
+        asOf: ANCHOR,
+      });
+      expect(request.requestedByEventType).toBe(type);
+    }
+  });
+
+  it("keeps the event type distinct from the event id", () => {
+    const request = makeRecomputeRequest({
+      kind: "work_readiness",
+      assetId: "K-201",
+      requestedByEventId: "evt-42",
+      requestedByEventType: "MaterialsChecked",
+      asOf: ANCHOR,
+    });
+    expect(request.requestedByEventId).toBe("evt-42");
+    expect(request.requestedByEventType).toBe("MaterialsChecked");
+    expect(request.requestedByEventType).not.toBe(request.requestedByEventId);
   });
 });

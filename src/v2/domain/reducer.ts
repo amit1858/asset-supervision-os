@@ -6,11 +6,11 @@ import type {
 import {
   PHASE_ORDER,
   phaseIndex,
-  type EvidenceQuality,
+  type AssessmentEvidenceQuality,
   type LifecyclePhase,
   type LifecycleSnapshot,
 } from "./lifecycle";
-import { requiresEndorsement } from "./policy/exposure-threshold";
+import { isPolicyResolvable, requiresEndorsement } from "./policy/exposure-threshold";
 import type { RejectionReason } from "./rejection";
 import { makeRecomputeRequest, type RecomputeRequest } from "./recompute";
 
@@ -133,6 +133,7 @@ function request(
     kind,
     assetId: snapshot.assetId,
     requestedByEventId: event.eventId,
+    requestedByEventType: event.type,
     asOf: event.asOf,
   });
 }
@@ -142,6 +143,10 @@ function request(
  *
  * This is deterministic POLICY resolution of an approval that has already been
  * given — never a second human act. The original `approvalEventId` is reused.
+ *
+ * The threshold is evaluated AT `event.asOf`, so only an assessment that is
+ * available, fresh and evaluated at that same instant can resolve it. Stale
+ * exposure leaves the approval blocked rather than silently deciding it.
  */
 function resolveApproval(
   base: LifecycleSnapshot,
@@ -149,11 +154,12 @@ function resolveApproval(
   patch: Partial<LifecycleSnapshot>,
 ): ReduceResult {
   const merged = { ...base, ...patch } as LifecycleSnapshot;
-  const requirement = requiresEndorsement(merged.valueAtStake);
+  const requirement = requiresEndorsement(merged.valueAtStake, event.asOf);
 
   if (requirement === "undeterminable") {
-    // Approval IS recorded, but the threshold cannot be evaluated, so the
-    // lifecycle stays blocked at DECISION_PROPOSED (owner decision B-2).
+    // Approval IS recorded, but the threshold cannot be resolved from the
+    // governed evidence, so the lifecycle stays blocked at DECISION_PROPOSED
+    // (owner decision B-2, hardened in 2.1b.1: stale evidence blocks too).
     return commit(base, event, { ...patch, decisionStatus: "approved" });
   }
   if (requirement === "required") {
@@ -198,12 +204,19 @@ export function reduce(snapshot: LifecycleSnapshot, event: GovernedEvent): Reduc
       const { assessmentId, assetId, valueAtStake } = event.payload;
       if (assetId !== snapshot.assetId) return MISMATCH;
 
-      const available = isAvailable(valueAtStake);
-      const quality: EvidenceQuality = available ? "sufficient" : "unavailable";
+      // Three-way classification (2.1b.1). Only a POLICY-RESOLVABLE envelope
+      // governs; a real but stale value is disclosed and holds.
+      const resolvable = isPolicyResolvable(valueAtStake, event.asOf);
+      const quality: AssessmentEvidenceQuality = resolvable
+        ? "sufficient"
+        : isAvailable(valueAtStake)
+          ? "stale"
+          : "unavailable";
 
       // The latest ATTEMPT is always recorded; the last VALID governed
-      // assessment and its envelope are preserved when evidence is missing.
-      const patch: Partial<LifecycleSnapshot> = available
+      // assessment and its envelope are preserved when evidence is stale or
+      // missing. A stale attempt touches these two fields and nothing else.
+      const patch: Partial<LifecycleSnapshot> = resolvable
         ? {
             latestAssessmentId: assessmentId,
             governingAssessmentId: assessmentId,
@@ -213,15 +226,17 @@ export function reduce(snapshot: LifecycleSnapshot, event: GovernedEvent): Reduc
         : { latestAssessmentId: assessmentId, assessmentEvidenceQuality: quality };
 
       if (snapshot.phase === "SIGNAL_DETECTED") {
-        // A failed initial assessment holds S1: there is nothing to assess with.
-        if (!available) return commit(snapshot, event, patch);
+        // A stale or failed initial assessment holds S1: there is no governed
+        // assessment to advance on.
+        if (!resolvable) return commit(snapshot, event, patch);
         return commit(snapshot, event, { ...patch, phase: "RISK_ASSESSED" });
       }
 
-      // Deferred policy resolution: an approval blocked on unavailable exposure
-      // becomes resolvable the moment a governed value arrives.
+      // Deferred policy resolution: an approval blocked on unresolvable
+      // exposure becomes resolvable the moment a governed value arrives that is
+      // available, fresh and evaluated at this event's instant.
       if (
-        available &&
+        resolvable &&
         snapshot.phase === "DECISION_PROPOSED" &&
         snapshot.decisionStatus === "approved"
       ) {
