@@ -116,3 +116,113 @@ export {
   EXPOSURE_THRESHOLD_USD,
   requiresEndorsement,
 } from "./policy/exposure-threshold";
+
+// --- Slice 2.1c -----------------------------------------------------------
+//
+// The calculation ledger. Its runtime integrity brands are deliberately NOT
+// exported: an accepted calculation record and a `CalculationLedger` are
+// obtainable only from `createLedger`, `appendCalculation`, `executeRecompute`
+// and `replayCalculations`. The server-only engine adapter is NOT re-exported
+// here — it lives under `src/v2/server/calculations/**` and must stay
+// unreachable from any client path.
+
+export type {
+  CalculationSubject,
+  CalculationSubjectKind,
+  LedgerScope,
+  LedgerScopeKind,
+} from "./calculations/subject";
+export {
+  CALCULATION_SUBJECT_KINDS,
+  isSubjectInScope,
+  REQUIRED_SUBJECT_KIND,
+  VALID_TRIGGERS,
+} from "./calculations/subject";
+
+export type {
+  CalculationId,
+  CalculationRequestId,
+  CalculationSlot,
+} from "./calculations/identity";
+export {
+  calculationIdOf,
+  canonicalKey,
+  ledgerScopeKeyOf,
+  requestIdOf,
+  slotKey,
+  subjectKey,
+} from "./calculations/identity";
+
+export type {
+  FormulaFamily,
+  FormulaFieldDefinition,
+  FormulaReference,
+  FormulaSetDefinition,
+} from "./calculations/formula";
+export {
+  DEFAULT_FORMULA_SET_VERSION,
+  findFormulaSet,
+  FORMULA_SETS,
+} from "./calculations/formula";
+
+export type {
+  CalculationInputKind,
+  CalculationInputReference,
+  CalculationInputSnapshot,
+  JsonObject,
+  JsonValue,
+} from "./calculations/inputs";
+export {
+  makeFullInputSnapshot,
+  makeReferencedOnlyInputSnapshot,
+} from "./calculations/inputs";
+
+export type {
+  CalculationRejectionReason,
+  CalculationUnavailableReason,
+} from "./calculations/failure";
+export {
+  CALCULATION_UNAVAILABLE_REASONS,
+  FAILURE_ENGINE_THREW,
+  UNAVAILABLE_LEAD_TIME_FIT_DEFERRED,
+  UNAVAILABLE_NO_ASSESSMENT_ENGINE_FOR_ASSET,
+  UNAVAILABLE_NO_ENGINE_DATA,
+  UNAVAILABLE_NO_VALIDATED_OUTCOME,
+  UNAVAILABLE_WORK_READINESS_DEFERRED,
+} from "./calculations/failure";
+
+export type {
+  CalculationOutput,
+  CalculationOutputField,
+  CalculationRecord,
+  FailedCalculationOutput,
+  ProducedCalculationOutput,
+  UnavailableCalculationOutput,
+} from "./calculations/record";
+
+export type {
+  AcceptedCalculationRecord,
+  AppendCalculationResult,
+  CalculationLedger,
+  ReplayCalculationsResult,
+} from "./calculations/ledger";
+export {
+  appendCalculation,
+  createLedger,
+  latestAttempt,
+  latestProduced,
+  replayCalculations,
+  toPersistableCalculations,
+} from "./calculations/ledger";
+
+export type {
+  AssetAssessmentResult,
+  DatasetMetadata,
+  EngineEvidence,
+  EnginePort,
+  OutcomeRealisedValueResult,
+  ProductionOeeResult,
+  ProjectedValueResult,
+} from "./calculations/port";
+
+export { executeRecompute } from "./calculations/execute";
