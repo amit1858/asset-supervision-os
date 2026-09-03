@@ -20,6 +20,16 @@ describe("input references", () => {
     expect(isCalculationInputReference(REF)).toBe(true);
   });
 
+  it("accepts the new constant reference kind", () => {
+    expect(
+      isCalculationInputReference({
+        kind: "constant",
+        id: "required-spare-cardinality.v1",
+        description: "One required unit per unique listed spare.",
+      }),
+    ).toBe(true);
+  });
+
   it("rejects an unknown kind, blank id or blank description", () => {
     expect(isCalculationInputReference({ ...REF, kind: "spreadsheet" })).toBe(false);
     expect(isCalculationInputReference({ ...REF, id: "  " })).toBe(false);
@@ -136,6 +146,83 @@ describe("referenced-only input snapshot", () => {
         references: [REF],
       }),
     ).toThrow(TypeError);
+  });
+});
+
+describe("referenced-only cardinality policy version", () => {
+  it("carries and freezes an optional cardinalityPolicyVersion", () => {
+    const snapshot = makeReferencedOnlyInputSnapshot({
+      limitation: "referenced, not retained",
+      reproductionRequires: "the seeded dataset at the same anchor",
+      references: [REF],
+      cardinalityPolicyVersion: "required-spare-cardinality.v1",
+    });
+    if (snapshot.reproducibility !== "referenced_only") throw new Error("unreachable");
+    expect(snapshot.cardinalityPolicyVersion).toBe("required-spare-cardinality.v1");
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(isCalculationInputSnapshot(snapshot)).toBe(true);
+  });
+
+  it("omits the field entirely when it is not supplied", () => {
+    const snapshot = makeReferencedOnlyInputSnapshot({
+      limitation: "referenced, not retained",
+      reproductionRequires: "the seeded dataset at the same anchor",
+      references: [REF],
+    });
+    if (snapshot.reproducibility !== "referenced_only") throw new Error("unreachable");
+    expect("cardinalityPolicyVersion" in snapshot).toBe(false);
+    expect(snapshot.cardinalityPolicyVersion).toBeUndefined();
+  });
+
+  it("rejects a blank cardinalityPolicyVersion at construction and validation", () => {
+    expect(() =>
+      makeReferencedOnlyInputSnapshot({
+        limitation: "l",
+        reproductionRequires: "r",
+        references: [REF],
+        cardinalityPolicyVersion: "  ",
+      }),
+    ).toThrow(TypeError);
+    expect(
+      isCalculationInputSnapshot({
+        reproducibility: "referenced_only",
+        limitation: "l",
+        reproductionRequires: "r",
+        references: [REF],
+        cardinalityPolicyVersion: "",
+      }),
+    ).toBe(false);
+  });
+
+  it("preserves the policy version through re-freezing", () => {
+    const referenced = freezeInputSnapshot({
+      reproducibility: "referenced_only",
+      limitation: "l",
+      reproductionRequires: "r",
+      references: [REF],
+      cardinalityPolicyVersion: "required-spare-cardinality.v1",
+    });
+    if (referenced.reproducibility !== "referenced_only") throw new Error("unreachable");
+    expect(referenced.cardinalityPolicyVersion).toBe("required-spare-cardinality.v1");
+    expect(Object.isFrozen(referenced)).toBe(true);
+  });
+
+  it("makes a different policy version a different reproduction contract", () => {
+    // A future governed policy change must not silently reuse the old record:
+    // the frozen snapshot content differs, so the reproduction contract differs.
+    const v1 = makeReferencedOnlyInputSnapshot({
+      limitation: "l",
+      reproductionRequires: "r",
+      references: [REF],
+      cardinalityPolicyVersion: "required-spare-cardinality.v1",
+    });
+    const v2 = makeReferencedOnlyInputSnapshot({
+      limitation: "l",
+      reproductionRequires: "r",
+      references: [REF],
+      cardinalityPolicyVersion: "required-spare-cardinality.v2",
+    });
+    expect(JSON.stringify(v1)).not.toBe(JSON.stringify(v2));
   });
 });
 

@@ -44,6 +44,7 @@ export type CalculationSubject =
   | {
       readonly kind: "turnaround_scope";
       readonly turnaroundScopeId: string;
+      readonly workOrderId: string;
       readonly assetId: string;
     }
   | {
@@ -154,8 +155,10 @@ export function subjectIdentityParts(
         ? [subject.workOrderId, subject.assetId]
         : null;
     case "turnaround_scope":
-      return isNonEmpty(subject.turnaroundScopeId) && isNonEmpty(subject.assetId)
-        ? [subject.turnaroundScopeId, subject.assetId]
+      return isNonEmpty(subject.turnaroundScopeId) &&
+        isNonEmpty(subject.workOrderId) &&
+        isNonEmpty(subject.assetId)
+        ? [subject.turnaroundScopeId, subject.workOrderId, subject.assetId]
         : null;
     case "outcome":
       return isNonEmpty(subject.outcomeId) && isNonEmpty(subject.assetId)

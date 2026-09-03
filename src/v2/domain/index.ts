@@ -223,6 +223,63 @@ export type {
   OutcomeRealisedValueResult,
   ProductionOeeResult,
   ProjectedValueResult,
+  TurnaroundLeadTimeEvidence,
+  TurnaroundSpareLeadTimeEvidence,
+  WorkOrderMaterialsEvidence,
+  WorkOrderSpareBalanceEvidence,
 } from "./calculations/port";
+
+// --- Slice 2.1c.1 — governed work readiness & turnaround lead-time fit -----
+
+export type {
+  RequiredSpareCardinality,
+  RequiredSpareUnit,
+} from "./calculations/policy/spare-cardinality";
+export {
+  REQUIRED_SPARE_CARDINALITY_POLICY_VERSION,
+  resolveRequiredSpareCardinality,
+} from "./calculations/policy/spare-cardinality";
+
+export type {
+  WorkReadinessFieldResult,
+  WorkReadinessInput,
+  WorkReadinessResult,
+  WorkReadinessSpareBalance,
+} from "./calculations/work-readiness";
+export {
+  computeWorkReadiness,
+  WORK_READINESS_FIELD_NAMES,
+  WORK_READINESS_FORMULA_SET_VERSION,
+} from "./calculations/work-readiness";
+
+export type {
+  TurnaroundFitLabel,
+  TurnaroundFitSelectorResult,
+  TurnaroundLeadTimeFitFieldResult,
+  TurnaroundLeadTimeFitInput,
+  TurnaroundLeadTimeFitResult,
+  TurnaroundSpareLeadTime,
+} from "./calculations/turnaround-fit";
+export {
+  computeTurnaroundLeadTimeFit,
+  TURNAROUND_FIT_SELECTOR_VERSION,
+  TURNAROUND_LEAD_TIME_FIT_FIELD_NAMES,
+  TURNAROUND_LEAD_TIME_FIT_FORMULA_SET_VERSION,
+  turnaroundFitSelector,
+} from "./calculations/turnaround-fit";
+
+export type {
+  InventoryBufferInputs,
+  InventoryBufferLabel,
+  MaterialsReadinessInputs,
+  MaterialsReadinessLabel,
+  SelectorResult,
+} from "./calculations/selectors";
+export {
+  INVENTORY_BUFFER_SELECTOR_VERSION,
+  inventoryBufferSelector,
+  MATERIALS_READINESS_SELECTOR_VERSION,
+  materialsReadinessSelector,
+} from "./calculations/selectors";
 
 export { executeRecompute } from "./calculations/execute";

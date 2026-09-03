@@ -40,7 +40,8 @@ export type CalculationInputKind =
   | "sensor_reading_window"
   | "production_run_window"
   | "downtime_event_window"
-  | "dataset";
+  | "dataset"
+  | "constant";
 
 export interface CalculationInputReference {
   readonly kind: CalculationInputKind;
@@ -61,6 +62,15 @@ export type CalculationInputSnapshot =
       readonly limitation: string;
       readonly reproductionRequires: string;
       readonly references: readonly CalculationInputReference[];
+      /**
+       * Governed cardinality-policy version this record was produced under, when
+       * the calculation's reproduction contract depends on one (work readiness
+       * and the required-spare rule). A future policy change is a governed
+       * formula-set upgrade, so this value both discloses the assumption and,
+       * because it is part of the frozen reproduction contract, prevents a
+       * record produced under a different policy from being byte-identical.
+       */
+      readonly cardinalityPolicyVersion?: string;
     };
 
 const INPUT_KINDS: readonly CalculationInputKind[] = Object.freeze([
@@ -75,6 +85,7 @@ const INPUT_KINDS: readonly CalculationInputKind[] = Object.freeze([
   "production_run_window",
   "downtime_event_window",
   "dataset",
+  "constant",
 ] as const);
 
 function isNonEmpty(value: unknown): value is string {
@@ -183,6 +194,7 @@ export function makeReferencedOnlyInputSnapshot(init: {
   readonly limitation: string;
   readonly reproductionRequires: string;
   readonly references: readonly CalculationInputReference[];
+  readonly cardinalityPolicyVersion?: string;
 }): CalculationInputSnapshot {
   if (!isNonEmpty(init?.limitation)) {
     throw new TypeError(
@@ -197,11 +209,26 @@ export function makeReferencedOnlyInputSnapshot(init: {
   if (!Array.isArray(init.references) || !init.references.every(isCalculationInputReference)) {
     throw new TypeError("A calculation input snapshot requires valid input references.");
   }
+  if (init.cardinalityPolicyVersion !== undefined && !isNonEmpty(init.cardinalityPolicyVersion)) {
+    throw new TypeError(
+      "A referenced-only input snapshot cardinalityPolicyVersion, when present, must be a non-empty string.",
+    );
+  }
+  const references = freezeReferences(init.references);
+  if (init.cardinalityPolicyVersion === undefined) {
+    return deepFreeze({
+      reproducibility: "referenced_only" as const,
+      limitation: init.limitation,
+      reproductionRequires: init.reproductionRequires,
+      references,
+    });
+  }
   return deepFreeze({
     reproducibility: "referenced_only" as const,
     limitation: init.limitation,
     reproductionRequires: init.reproductionRequires,
-    references: freezeReferences(init.references),
+    references,
+    cardinalityPolicyVersion: init.cardinalityPolicyVersion,
   });
 }
 
@@ -222,6 +249,12 @@ export function isCalculationInputSnapshot(
     return isJsonValue(snapshot);
   }
   if (candidate.reproducibility === "referenced_only") {
+    if (
+      candidate.cardinalityPolicyVersion !== undefined &&
+      !isNonEmpty(candidate.cardinalityPolicyVersion)
+    ) {
+      return false;
+    }
     return isNonEmpty(candidate.limitation) && isNonEmpty(candidate.reproductionRequires);
   }
   return false;
@@ -238,10 +271,19 @@ export function freezeInputSnapshot(
       references: freezeReferences(snapshot.references),
     });
   }
+  if (snapshot.cardinalityPolicyVersion === undefined) {
+    return deepFreeze({
+      reproducibility: "referenced_only" as const,
+      limitation: snapshot.limitation,
+      reproductionRequires: snapshot.reproductionRequires,
+      references: freezeReferences(snapshot.references),
+    });
+  }
   return deepFreeze({
     reproducibility: "referenced_only" as const,
     limitation: snapshot.limitation,
     reproductionRequires: snapshot.reproductionRequires,
     references: freezeReferences(snapshot.references),
+    cardinalityPolicyVersion: snapshot.cardinalityPolicyVersion,
   });
 }

@@ -3,6 +3,12 @@ import { ANCHOR_NOW, LINE, SEED } from "@/data/constants";
 import { executeRecompute } from "@/v2/domain/calculations/execute";
 import { slotKey } from "@/v2/domain/calculations/identity";
 import { createLedger } from "@/v2/domain/calculations/ledger";
+import {
+  inventoryBufferSelector,
+  materialsReadinessSelector,
+} from "@/v2/domain/calculations/selectors";
+import { subjectIdentityParts } from "@/v2/domain/calculations/subject";
+import { turnaroundFitSelector } from "@/v2/domain/calculations/turnaround-fit";
 import type {
   CalculationSubject,
   LedgerScope,
@@ -282,5 +288,161 @@ describe("the ledger agrees with the existing numerical truth", () => {
     if (second.outcome !== "accepted") throw new Error("unreachable");
     expect(second.ledger.latestProducedBySlot[slot]).toBe(first.record.calculationId);
     expect(second.proposedEvents).toEqual([]);
+  });
+});
+
+describe("governed work readiness through the real seeded inventory", () => {
+  // Inventory evidence is captured at 06:00 on the anchor day, so it is only
+  // observable/fresh from an `asOf` at or after that instant. The anchor's own
+  // midnight would make the balances future-dated; noon is the governed instant
+  // this slice evaluates at, exactly as the golden math specifies.
+  const MATERIALS_AS_OF = "2026-07-27T12:00:00.000Z";
+
+  function readiness(workOrderId: string) {
+    const subject: CalculationSubject = { kind: "work_order", workOrderId, assetId: ASSET };
+    const result = executeRecompute(
+      createLedger(CASE_SCOPE),
+      request({
+        kind: "work_readiness",
+        requestedByEventType: "MaterialsChecked",
+        asOf: MATERIALS_AS_OF,
+      }),
+      subject,
+      port,
+    );
+    if (result.outcome !== "accepted") throw new Error(`expected acceptance: ${result.outcome}`);
+    if (result.record.output.outcome !== "produced") {
+      throw new Error(`expected produced, got ${result.record.output.outcome}`);
+    }
+    const map = new Map(
+      result.record.output.fields.map((f) => [f.name, f.envelope.value] as const),
+    );
+    return { result, map };
+  }
+
+  it("computes wo-1 as materials-ready with a below-reorder-point buffer of -1", () => {
+    const { result, map } = readiness("wo-1");
+    expect(map.get("requiredSpareLineCount")).toBe(1);
+    expect(map.get("totalRequiredQty")).toBe(1);
+    expect(map.get("sparesWithBalanceCount")).toBe(1);
+    expect(map.get("totalAvailableUnreservedQty")).toBe(1);
+    expect(map.get("totalShortageQty")).toBe(0);
+    expect(map.get("sparesWithShortageCount")).toBe(0);
+    expect(map.get("minimumCoverageRatio")).toBe(1);
+    expect(map.get("postAllocationBufferToReorderPoint")).toBe(-1);
+
+    const materials = materialsReadinessSelector({
+      totalRequiredQty: map.get("totalRequiredQty") ?? null,
+      totalShortageQty: map.get("totalShortageQty") ?? null,
+    });
+    expect(materials.label).toBe("ready");
+    const buffer = inventoryBufferSelector({
+      postAllocationBufferToReorderPoint:
+        map.get("postAllocationBufferToReorderPoint") ?? null,
+    });
+    expect(buffer.label).toBe("below_reorder_point");
+
+    // Governed materials evidence is fresh inventory, and no lifecycle event is
+    // proposed by a readiness calculation.
+    if (result.record.output.outcome !== "produced") throw new Error("unreachable");
+    expect(result.record.output.fields[0]!.envelope.freshness).toBe("fresh");
+    expect(result.record.output.fields[0]!.envelope.sourceMode).toBe("local");
+    expect(result.proposedEvents).toEqual([]);
+  });
+
+  it("computes wo-2 as materials-blocked on a genuine zero-on-hand shortage", () => {
+    const { map } = readiness("wo-2");
+    expect(map.get("totalRequiredQty")).toBe(1);
+    // sp-seal on hand is a governed 0, not missing evidence: it is a shortage.
+    expect(map.get("totalAvailableUnreservedQty")).toBe(0);
+    expect(map.get("totalShortageQty")).toBe(1);
+    const materials = materialsReadinessSelector({
+      totalRequiredQty: map.get("totalRequiredQty") ?? null,
+      totalShortageQty: map.get("totalShortageQty") ?? null,
+    });
+    expect(materials.label).toBe("blocked");
+  });
+
+  it("returns null for a work order that belongs to another asset", () => {
+    expect(port.workOrderMaterialsEvidence("wo-1", "asset-e205")).toBeNull();
+    expect(port.workOrderMaterialsEvidence("wo-does-not-exist", ASSET)).toBeNull();
+  });
+});
+
+describe("governed turnaround lead-time fit through the real seed", () => {
+  const TURNAROUND_AS_OF = "2026-07-27T12:00:00.000Z";
+  const SCOPE_SUBJECT: CalculationSubject = {
+    kind: "turnaround_scope",
+    turnaroundScopeId: "wp-k201",
+    workOrderId: "wo-2",
+    assetId: ASSET,
+  };
+
+  function fit(subject: CalculationSubject) {
+    const result = executeRecompute(
+      createLedger(CASE_SCOPE),
+      request({
+        kind: "turnaround_lead_time_fit",
+        requestedByEventType: "TurnaroundScopeRetained",
+        asOf: TURNAROUND_AS_OF,
+      }),
+      subject,
+      port,
+    );
+    if (result.outcome !== "accepted") throw new Error(`expected acceptance: ${result.outcome}`);
+    return result;
+  }
+
+  it("reproduces the golden 35 / 88 / 20696 (2026-08-31) / 53 fit for wp-k201·wo-2", () => {
+    const result = fit(SCOPE_SUBJECT);
+    if (result.record.output.outcome !== "produced") {
+      throw new Error(`expected produced, got ${result.record.output.outcome}`);
+    }
+    const map = new Map(
+      result.record.output.fields.map((f) => [f.name, f.envelope.value] as const),
+    );
+    expect(map.get("maxLeadTimeDays")).toBe(35);
+    expect(map.get("daysUntilTurnaround")).toBe(88);
+    expect(map.get("availableDateEpochDay")).toBe(20696);
+    expect(map.get("slackDays")).toBe(53);
+    expect(new Date(20696 * 86_400_000).toISOString().slice(0, 10)).toBe("2026-08-31");
+
+    expect(turnaroundFitSelector(map.get("slackDays") ?? null).label).toBe("fits");
+    expect(result.record.output.fields[0]!.envelope.freshness).toBe("fresh");
+    expect(result.proposedEvents).toEqual([]);
+  });
+
+  it("carries the exact three-part subject identity", () => {
+    expect(subjectIdentityParts(SCOPE_SUBJECT)).toEqual(["wp-k201", "wo-2", "asset-k201"]);
+  });
+
+  it("uses exactly the named work order and never scans sibling work orders", () => {
+    // Naming wo-1 (sp-brg, lead 21) instead of wo-2 (sp-seal, lead 35) must
+    // yield 21, not 35 — proof the adapter reads the subject's work order alone.
+    const result = fit({
+      kind: "turnaround_scope",
+      turnaroundScopeId: "wp-k201",
+      workOrderId: "wo-1",
+      assetId: ASSET,
+    });
+    if (result.record.output.outcome !== "produced") throw new Error("unreachable");
+    const map = new Map(
+      result.record.output.fields.map((f) => [f.name, f.envelope.value] as const),
+    );
+    expect(map.get("maxLeadTimeDays")).toBe(21);
+    expect(map.get("slackDays")).toBe(67);
+    expect(map.get("availableDateEpochDay")).toBe(20682);
+  });
+
+  it("is deterministic across repeated real-engine executions", () => {
+    const a = fit(SCOPE_SUBJECT);
+    const b = fit(SCOPE_SUBJECT);
+    expect(JSON.stringify(a.record.output)).toBe(JSON.stringify(b.record.output));
+  });
+
+  it("returns null for a scope on another asset or an unknown work order", () => {
+    expect(port.turnaroundLeadTimeEvidence("wp-k201", "wo-2", "asset-e205")).toBeNull();
+    expect(port.turnaroundLeadTimeEvidence("wp-k201", "wo-nope", ASSET)).toBeNull();
+    expect(port.turnaroundLeadTimeEvidence("wp-nope", "wo-2", ASSET)).toBeNull();
   });
 });

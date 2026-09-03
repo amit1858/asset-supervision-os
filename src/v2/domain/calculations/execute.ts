@@ -4,11 +4,9 @@ import { resolveFreshness } from "../freshness-state";
 import type { RecomputeRequest, RecomputeRequestKind } from "../recompute";
 import {
   FAILURE_ENGINE_THREW,
-  UNAVAILABLE_LEAD_TIME_FIT_DEFERRED,
   UNAVAILABLE_NO_ASSESSMENT_ENGINE_FOR_ASSET,
   UNAVAILABLE_NO_ENGINE_DATA,
   UNAVAILABLE_NO_VALIDATED_OUTCOME,
-  UNAVAILABLE_WORK_READINESS_DEFERRED,
   type CalculationRejectionReason,
 } from "./failure";
 import {
@@ -52,6 +50,12 @@ import {
   VALID_TRIGGERS,
   type CalculationSubject,
 } from "./subject";
+import { computeWorkReadiness } from "./work-readiness";
+import { computeTurnaroundLeadTimeFit } from "./turnaround-fit";
+import {
+  REQUIRED_SPARE_CARDINALITY_POLICY_REFERENCE,
+  REQUIRED_SPARE_CARDINALITY_POLICY_VERSION,
+} from "./policy/spare-cardinality";
 
 /**
  * Slice 2.1c — governed calculation EXECUTION.
@@ -234,6 +238,27 @@ function referencedInputs(
     reproductionRequires: DATASET_REPRODUCTION,
     references,
   });
+}
+
+/**
+ * The input snapshot for one recompute kind. Work readiness additionally
+ * attributes the governed required-spare cardinality policy — both as a
+ * structured constant reference and as the snapshot's `cardinalityPolicyVersion`
+ * — because its result depends on that assumption. No other kind carries it.
+ */
+function inputsForKind(
+  kind: RecomputeRequestKind,
+  subject: CalculationSubject,
+): CalculationInputSnapshot {
+  if (kind === "work_readiness") {
+    return makeReferencedOnlyInputSnapshot({
+      limitation: DATASET_LIMITATION,
+      reproductionRequires: DATASET_REPRODUCTION,
+      references: [subjectReference(subject), REQUIRED_SPARE_CARDINALITY_POLICY_REFERENCE],
+      cardinalityPolicyVersion: REQUIRED_SPARE_CARDINALITY_POLICY_VERSION,
+    });
+  }
+  return referencedInputs([subjectReference(subject)]);
 }
 
 function subjectReference(subject: CalculationSubject): CalculationInputReference {
@@ -426,7 +451,7 @@ export function executeRecompute(
     requestedByEventType: request.requestedByEventType,
     asOf: request.asOf,
     formulaSetVersion,
-    inputs: referencedInputs([subjectReference(subject)]),
+    inputs: inputsForKind(request.kind, subject),
     output: engineOutcome.output,
     // An unavailable or failed attempt supersedes nothing: the last genuinely
     // produced value stays the governed head.
@@ -535,21 +560,82 @@ function runEngine(
       };
     }
 
-    // No governed engine exists for either of these in Slice 2.1c. The port is
-    // deliberately NOT consulted: there is nothing to ask, and a field-less
-    // formula set means no verdict can be fabricated.
     case "work_readiness": {
-      const context: EnvelopeContext = { ...base, evidence: NO_EVIDENCE };
+      const workOrderId = subject.kind === "work_order" ? subject.workOrderId : "";
+      const result = port.workOrderMaterialsEvidence(workOrderId, request.assetId);
+      if (result === null) {
+        const context: EnvelopeContext = { ...base, evidence: NO_EVIDENCE };
+        return {
+          evidence: NO_EVIDENCE,
+          output: unavailableOutput(context, set, UNAVAILABLE_NO_ENGINE_DATA),
+        };
+      }
+      const context: EnvelopeContext = { ...base, evidence: result.evidence };
+      const computed = computeWorkReadiness({
+        requiredSpareIds: result.requiredSpareIds,
+        spareBalances: result.spareBalances,
+        capturedAt: result.evidence.capturedAt,
+        asOf: base.asOf,
+      });
+      if (computed.overall.status === "unavailable") {
+        return {
+          evidence: result.evidence,
+          output: unavailableOutput(context, set, computed.overall.reason),
+        };
+      }
       return {
-        evidence: NO_EVIDENCE,
-        output: unavailableOutput(context, set, UNAVAILABLE_WORK_READINESS_DEFERRED),
+        evidence: result.evidence,
+        output: Object.freeze({
+          outcome: "produced" as const,
+          fields: Object.freeze(
+            computed.fields.map((f) =>
+              producedField(context, definition(f.name), f.value, f.unavailableReason),
+            ),
+          ),
+        }),
       };
     }
     case "turnaround_lead_time_fit": {
-      const context: EnvelopeContext = { ...base, evidence: NO_EVIDENCE };
+      const turnaroundScopeId =
+        subject.kind === "turnaround_scope" ? subject.turnaroundScopeId : "";
+      const workOrderId =
+        subject.kind === "turnaround_scope" ? subject.workOrderId : "";
+      const result = port.turnaroundLeadTimeEvidence(
+        turnaroundScopeId,
+        workOrderId,
+        request.assetId,
+      );
+      if (result === null) {
+        const context: EnvelopeContext = { ...base, evidence: NO_EVIDENCE };
+        return {
+          evidence: NO_EVIDENCE,
+          output: unavailableOutput(context, set, UNAVAILABLE_NO_ENGINE_DATA),
+        };
+      }
+      const context: EnvelopeContext = { ...base, evidence: result.evidence };
+      const computed = computeTurnaroundLeadTimeFit({
+        requiredSpareIds: result.requiredSpareIds,
+        spareLeadTimes: result.spareLeadTimes,
+        turnaroundStartIso: result.turnaroundStartIso,
+        capturedAt: result.evidence.capturedAt,
+        asOf: base.asOf,
+      });
+      if (computed.overall.status === "unavailable") {
+        return {
+          evidence: result.evidence,
+          output: unavailableOutput(context, set, computed.overall.reason),
+        };
+      }
       return {
-        evidence: NO_EVIDENCE,
-        output: unavailableOutput(context, set, UNAVAILABLE_LEAD_TIME_FIT_DEFERRED),
+        evidence: result.evidence,
+        output: Object.freeze({
+          outcome: "produced" as const,
+          fields: Object.freeze(
+            computed.fields.map((f) =>
+              producedField(context, definition(f.name), f.value, f.unavailableReason),
+            ),
+          ),
+        }),
       };
     }
 

@@ -1,6 +1,8 @@
 import type { Provenance, ValueStatus } from "@/domain/enums";
 import type { FreshnessClass } from "../policy/freshness";
 import type { RecomputeRequestKind } from "../recompute";
+import type { CalculationInputReference } from "./inputs";
+import { REQUIRED_SPARE_CARDINALITY_POLICY_REFERENCE } from "./policy/spare-cardinality";
 
 /**
  * Slice 2.1c — the governed formula registry.
@@ -64,6 +66,13 @@ export interface FormulaSetDefinition {
   readonly kind: RecomputeRequestKind;
   readonly formulaSetVersion: string;
   readonly fields: readonly FormulaFieldDefinition[];
+  /**
+   * Governed assumptions the set's engines rely on, disclosed as structured
+   * input references so the ledger can attribute them. Present only for a set
+   * whose result depends on such a policy — e.g. work readiness and the
+   * required-spare cardinality rule — and omitted otherwise.
+   */
+  readonly policyReferences?: readonly CalculationInputReference[];
 }
 
 function field(
@@ -89,6 +98,12 @@ const OEE_ENGINE = "@/engines/oee#aggregateOee";
 const EXPOSURE_ENGINE = "@/data/k201-analysis#analyzeK201";
 const RECOMMENDATION_SOURCE = "@/data/repository#getRepository.getRots";
 const OUTCOME_SOURCE = "@/data/seed#getDataset.operationalOutcomes";
+// Referenced by STRING only — the governed domain never imports these engine
+// modules, so the pure formula registry stays free of any runtime dependency.
+const WORK_READINESS_ENGINE =
+  "@/v2/domain/calculations/work-readiness#computeWorkReadiness";
+const LEAD_TIME_FIT_ENGINE =
+  "@/v2/domain/calculations/turnaround-fit#computeTurnaroundLeadTimeFit";
 
 /**
  * `value_at_stake` carries `valueStatus: null`.
@@ -135,22 +150,41 @@ const PROJECTED_VALUE_V1: FormulaSetDefinition = Object.freeze({
 });
 
 /**
- * Work readiness and turnaround lead-time fit have NO governed engine in
- * Slice 2.1c. Their formula sets are deliberately field-less: a calculation of
- * either kind can only ever be an auditable unavailable attempt, and there is
- * no registered field a caller could populate with a fabricated `"ready"` or
- * `"fits"` verdict. Slice 2.1c.1 introduces the real engines.
+ * Slice 2.1c.1 introduces the real governed engines for work readiness and
+ * turnaround lead-time fit. Each formula set now names its fields, its
+ * deterministic provenance, its governed freshness class and — by STRING only —
+ * the pure engine entry point that owns the arithmetic. A produced calculation
+ * carries every field; an absent value is an explicit unavailable field, never a
+ * fabricated `"ready"` or `"fits"`.
  */
-const WORK_READINESS_DEFERRED_V1: FormulaSetDefinition = Object.freeze({
+const WORK_READINESS_V1: FormulaSetDefinition = Object.freeze({
   kind: "work_readiness",
-  formulaSetVersion: "work-readiness.deferred.v1",
-  fields: Object.freeze([]),
+  formulaSetVersion: "work-readiness.v1",
+  fields: Object.freeze([
+    field("requiredSpareLineCount", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("totalRequiredQty", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("sparesWithBalanceCount", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("totalAvailableUnreservedQty", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("totalShortageQty", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("sparesWithShortageCount", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("minimumCoverageRatio", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("postAllocationBufferToReorderPoint", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("engineeringReadinessGoverned", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("labourReadinessGoverned", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+    field("permitsReadinessGoverned", "work_readiness", "work-readiness.v1", WORK_READINESS_ENGINE, "deterministic", null, "inventory_material"),
+  ]),
+  policyReferences: Object.freeze([REQUIRED_SPARE_CARDINALITY_POLICY_REFERENCE]),
 });
 
-const LEAD_TIME_FIT_DEFERRED_V1: FormulaSetDefinition = Object.freeze({
+const LEAD_TIME_FIT_V1: FormulaSetDefinition = Object.freeze({
   kind: "turnaround_lead_time_fit",
-  formulaSetVersion: "turnaround-lead-time-fit.deferred.v1",
-  fields: Object.freeze([]),
+  formulaSetVersion: "turnaround-lead-time-fit.v1",
+  fields: Object.freeze([
+    field("maxLeadTimeDays", "turnaround_lead_time_fit", "turnaround-lead-time-fit.v1", LEAD_TIME_FIT_ENGINE, "deterministic", null, "turnaround_readiness"),
+    field("daysUntilTurnaround", "turnaround_lead_time_fit", "turnaround-lead-time-fit.v1", LEAD_TIME_FIT_ENGINE, "deterministic", null, "turnaround_readiness"),
+    field("availableDateEpochDay", "turnaround_lead_time_fit", "turnaround-lead-time-fit.v1", LEAD_TIME_FIT_ENGINE, "deterministic", null, "turnaround_readiness"),
+    field("slackDays", "turnaround_lead_time_fit", "turnaround-lead-time-fit.v1", LEAD_TIME_FIT_ENGINE, "deterministic", null, "turnaround_readiness"),
+  ]),
 });
 
 const REALISED_VALUE_V1: FormulaSetDefinition = Object.freeze({
@@ -168,8 +202,8 @@ export const FORMULA_SETS: Readonly<
   asset_assessment: Object.freeze([ASSET_ASSESSMENT_V1]),
   oee_reconciliation: Object.freeze([OEE_RECONCILIATION_V1]),
   decision_projected_value: Object.freeze([PROJECTED_VALUE_V1]),
-  work_readiness: Object.freeze([WORK_READINESS_DEFERRED_V1]),
-  turnaround_lead_time_fit: Object.freeze([LEAD_TIME_FIT_DEFERRED_V1]),
+  work_readiness: Object.freeze([WORK_READINESS_V1]),
+  turnaround_lead_time_fit: Object.freeze([LEAD_TIME_FIT_V1]),
   realised_value: Object.freeze([REALISED_VALUE_V1]),
 });
 
@@ -180,8 +214,8 @@ export const DEFAULT_FORMULA_SET_VERSION: Readonly<
   asset_assessment: ASSET_ASSESSMENT_V1.formulaSetVersion,
   oee_reconciliation: OEE_RECONCILIATION_V1.formulaSetVersion,
   decision_projected_value: PROJECTED_VALUE_V1.formulaSetVersion,
-  work_readiness: WORK_READINESS_DEFERRED_V1.formulaSetVersion,
-  turnaround_lead_time_fit: LEAD_TIME_FIT_DEFERRED_V1.formulaSetVersion,
+  work_readiness: WORK_READINESS_V1.formulaSetVersion,
+  turnaround_lead_time_fit: LEAD_TIME_FIT_V1.formulaSetVersion,
   realised_value: REALISED_VALUE_V1.formulaSetVersion,
 });
 

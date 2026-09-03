@@ -95,6 +95,56 @@ export interface OutcomeRealisedValueResult {
   readonly evidence: EngineEvidence;
 }
 
+/**
+ * Slice 2.1c.1 — RAW work-order materials evidence.
+ *
+ * The adapter reads the work order and the DISTINCT spare balances behind it and
+ * returns them verbatim. It performs no readiness arithmetic: shortage, coverage
+ * and buffer are all computed by the governed domain engine, so there is exactly
+ * one implementation and no way for the ledger to disagree with it. A spare with
+ * no `SparePart` or `InventoryBalance` row is surfaced honestly via the boolean
+ * flags and `null` quantities, never coerced to zero.
+ */
+export interface WorkOrderSpareBalanceEvidence {
+  readonly spareId: string;
+  readonly hasSparePart: boolean;
+  readonly hasBalance: boolean;
+  readonly onHandQty: number | null;
+  readonly reservedQty: number | null;
+  readonly reorderPoint: number | null;
+}
+
+export interface WorkOrderMaterialsEvidence {
+  readonly workOrderId: string;
+  readonly assetId: string;
+  /** Raw, exactly as the work order carries them; cardinality is governed downstream. */
+  readonly requiredSpareIds: readonly string[];
+  readonly spareBalances: readonly WorkOrderSpareBalanceEvidence[];
+  readonly evidence: EngineEvidence;
+}
+
+/**
+ * Slice 2.1c.1 — RAW turnaround lead-time evidence for one named work order
+ * within a turnaround scope. Lead times and the turnaround window are read
+ * verbatim; the fit arithmetic (max lead time, slack, availability date) is the
+ * governed domain engine's, never the adapter's.
+ */
+export interface TurnaroundSpareLeadTimeEvidence {
+  readonly spareId: string;
+  readonly leadTimeDays: number | null;
+}
+
+export interface TurnaroundLeadTimeEvidence {
+  readonly turnaroundScopeId: string;
+  readonly workOrderId: string;
+  readonly assetId: string;
+  readonly requiredSpareIds: readonly string[];
+  readonly spareLeadTimes: readonly TurnaroundSpareLeadTimeEvidence[];
+  /** Turnaround window start; `null` when the project is missing or unresolved. */
+  readonly turnaroundStartIso: string | null;
+  readonly evidence: EngineEvidence;
+}
+
 export interface EnginePort {
   datasetMetadata(): DatasetMetadata;
 
@@ -111,4 +161,24 @@ export interface EnginePort {
     outcomeId: string,
     assetId: string,
   ): OutcomeRealisedValueResult | null;
+
+  /**
+   * Raw materials evidence for a work order, or `null` when the work order does
+   * not exist or belongs to another asset — an auditable unavailable, never a
+   * fabricated readiness.
+   */
+  workOrderMaterialsEvidence(
+    workOrderId: string,
+    assetId: string,
+  ): WorkOrderMaterialsEvidence | null;
+
+  /**
+   * Raw lead-time evidence for one named work order within a turnaround scope,
+   * or `null` when the scope / work order is missing or the asset mismatches.
+   */
+  turnaroundLeadTimeEvidence(
+    turnaroundScopeId: string,
+    workOrderId: string,
+    assetId: string,
+  ): TurnaroundLeadTimeEvidence | null;
 }

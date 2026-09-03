@@ -57,7 +57,10 @@ describe("slice 2.1c module inventory", () => {
       "ledger.ts",
       "port.ts",
       "record.ts",
+      "selectors.ts",
       "subject.ts",
+      "turnaround-fit.ts",
+      "work-readiness.ts",
     ]);
   });
 });

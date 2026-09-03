@@ -45,7 +45,9 @@ describe("formula registry coverage", () => {
       for (const set of FORMULA_SETS[kind]) {
         for (const field of set.fields) {
           expect(isFormulaReference(field.formula), field.name).toBe(true);
-          expect(field.formula.engineEntryPoint, field.name).toMatch(/^@\/(engines|data)\//);
+          expect(field.formula.engineEntryPoint, field.name).toMatch(
+            /^@\/(engines|data|v2\/domain\/calculations)\//,
+          );
           expect(Object.keys(FRESHNESS_WINDOWS_MS), field.name).toContain(field.freshnessClass);
         }
       }
@@ -147,23 +149,70 @@ describe("oee, projected value and realised value formula sets", () => {
   });
 });
 
-describe("deferred engines", () => {
-  it("registers field-less sets for work readiness and lead-time fit", () => {
-    const readiness = findFormulaSet("work_readiness", "work-readiness.deferred.v1")!;
-    const fit = findFormulaSet("turnaround_lead_time_fit", "turnaround-lead-time-fit.deferred.v1")!;
-    expect(readiness.fields).toHaveLength(0);
-    expect(fit.fields).toHaveLength(0);
+describe("governed work readiness and turnaround lead-time-fit sets", () => {
+  it("registers the eleven governed work-readiness fields", () => {
+    const set = findFormulaSet("work_readiness", "work-readiness.v1")!;
+    expect(set.fields.map((f) => f.name)).toEqual([
+      "requiredSpareLineCount",
+      "totalRequiredQty",
+      "sparesWithBalanceCount",
+      "totalAvailableUnreservedQty",
+      "totalShortageQty",
+      "sparesWithShortageCount",
+      "minimumCoverageRatio",
+      "postAllocationBufferToReorderPoint",
+      "engineeringReadinessGoverned",
+      "labourReadinessGoverned",
+      "permitsReadinessGoverned",
+    ]);
+    for (const field of set.fields) {
+      expect(field.formula.family, field.name).toBe("work_readiness");
+      expect(field.provenance, field.name).toBe("deterministic");
+      expect(field.valueStatus, field.name).toBeNull();
+      expect(field.freshnessClass, field.name).toBe("inventory_material");
+    }
   });
 
-  it("names the deferring slice in both versions", () => {
-    expect(DEFAULT_FORMULA_SET_VERSION.work_readiness).toContain("deferred");
-    expect(DEFAULT_FORMULA_SET_VERSION.turnaround_lead_time_fit).toContain("deferred");
+  it("discloses the required-spare cardinality policy in work-readiness metadata only", () => {
+    const set = findFormulaSet("work_readiness", "work-readiness.v1")!;
+    expect(set.policyReferences).toBeDefined();
+    const ref = set.policyReferences!.find((r) => r.id === "required-spare-cardinality.v1");
+    expect(ref).toBeDefined();
+    expect(ref!.kind).toBe("constant");
+    expect(ref!.description.toLowerCase()).toContain("one required unit");
+    expect(Object.isFrozen(set.policyReferences)).toBe(true);
+    // No unrelated set carries a policy reference.
+    expect(findFormulaSet("asset_assessment", "asset-assessment.v1")!.policyReferences).toBeUndefined();
+    expect(
+      findFormulaSet("turnaround_lead_time_fit", "turnaround-lead-time-fit.v1")!.policyReferences,
+    ).toBeUndefined();
   });
 
-  it("registers no field that could carry a readiness or fit verdict", () => {
+  it("registers exactly the four governed lead-time-fit fields", () => {
+    const set = findFormulaSet("turnaround_lead_time_fit", "turnaround-lead-time-fit.v1")!;
+    expect(set.fields.map((f) => f.name)).toEqual([
+      "maxLeadTimeDays",
+      "daysUntilTurnaround",
+      "availableDateEpochDay",
+      "slackDays",
+    ]);
+    for (const field of set.fields) {
+      expect(field.formula.family, field.name).toBe("turnaround_lead_time_fit");
+      expect(field.provenance, field.name).toBe("deterministic");
+      expect(field.valueStatus, field.name).toBeNull();
+      expect(field.freshnessClass, field.name).toBe("turnaround_readiness");
+    }
+  });
+
+  it("defaults both kinds to their real v1 sets, with no deferred set left", () => {
+    expect(DEFAULT_FORMULA_SET_VERSION.work_readiness).toBe("work-readiness.v1");
+    expect(DEFAULT_FORMULA_SET_VERSION.turnaround_lead_time_fit).toBe(
+      "turnaround-lead-time-fit.v1",
+    );
     for (const kind of ["work_readiness", "turnaround_lead_time_fit"] as const) {
       for (const set of FORMULA_SETS[kind]) {
-        expect(set.fields, kind).toHaveLength(0);
+        expect(set.fields.length, kind).toBeGreaterThan(0);
+        expect(set.formulaSetVersion, kind).not.toContain("deferred");
       }
     }
   });

@@ -32,7 +32,7 @@ const SUBJECTS: Record<string, CalculationSubject> = {
   recommendation: { kind: "recommendation", recommendationId: "rec-k201", assetId: ASSET },
   foreignRecommendation: { kind: "recommendation", recommendationId: "rec-e205", assetId: OTHER_ASSET },
   workOrder: { kind: "work_order", workOrderId: "wo-1", assetId: ASSET },
-  turnaroundScope: { kind: "turnaround_scope", turnaroundScopeId: "ts-1", assetId: ASSET },
+  turnaroundScope: { kind: "turnaround_scope", turnaroundScopeId: "ts-1", workOrderId: "wo-1", assetId: ASSET },
   outcome: { kind: "outcome", outcomeId: "oo-1", assetId: ASSET },
   portfolio: { kind: "portfolio", portfolioId: "plant-1" },
 };

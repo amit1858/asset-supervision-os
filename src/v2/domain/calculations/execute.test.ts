@@ -3,10 +3,9 @@ import type { RecomputeRequest } from "../recompute";
 import { executeRecompute } from "./execute";
 import {
   FAILURE_ENGINE_THREW,
-  UNAVAILABLE_LEAD_TIME_FIT_DEFERRED,
   UNAVAILABLE_NO_ASSESSMENT_ENGINE_FOR_ASSET,
+  UNAVAILABLE_NO_ENGINE_DATA,
   UNAVAILABLE_NO_VALIDATED_OUTCOME,
-  UNAVAILABLE_WORK_READINESS_DEFERRED,
 } from "./failure";
 import { slotKey } from "./identity";
 import {
@@ -22,6 +21,8 @@ import type {
   OutcomeRealisedValueResult,
   ProductionOeeResult,
   ProjectedValueResult,
+  TurnaroundLeadTimeEvidence,
+  WorkOrderMaterialsEvidence,
 } from "./port";
 import type { CalculationOutputField } from "./record";
 import type { CalculationSubject, LedgerScope } from "./subject";
@@ -39,6 +40,7 @@ const WORK_ORDER: CalculationSubject = { kind: "work_order", workOrderId: "wo-1"
 const TURNAROUND: CalculationSubject = {
   kind: "turnaround_scope",
   turnaroundScopeId: "ts-1",
+  workOrderId: "wo-2",
   assetId: ASSET,
 };
 const LINE: CalculationSubject = { kind: "production_line", lineId: "line-hds2" };
@@ -58,6 +60,8 @@ interface PortOverrides {
   oee?: ProductionOeeResult | null;
   projected?: ProjectedValueResult | null;
   realised?: OutcomeRealisedValueResult | null;
+  materials?: WorkOrderMaterialsEvidence | null;
+  turnaround?: TurnaroundLeadTimeEvidence | null;
   throwOn?: keyof EnginePort;
   throwNonError?: boolean;
 }
@@ -136,6 +140,14 @@ function fakePort(overrides: PortOverrides = {}): EnginePort {
               unavailableReason: UNAVAILABLE_NO_VALIDATED_OUTCOME,
               evidence: EVIDENCE,
             },
+      ),
+    workOrderMaterialsEvidence: () =>
+      guard("workOrderMaterialsEvidence", () =>
+        overrides.materials !== undefined ? overrides.materials : null,
+      ),
+    turnaroundLeadTimeEvidence: () =>
+      guard("turnaroundLeadTimeEvidence", () =>
+        overrides.turnaround !== undefined ? overrides.turnaround : null,
       ),
   };
 }
@@ -406,8 +418,8 @@ describe("projected value stays K-201 scoped", () => {
   });
 });
 
-describe("deferred engines never reach the port", () => {
-  it("records work readiness as unavailable with a field-less formula set", () => {
+describe("governed work readiness and turnaround lead-time fit consult the port", () => {
+  it("records work readiness as unavailable when the port has no work-order evidence", () => {
     const result = executeRecompute(
       createLedger(SCOPE),
       request({ kind: "work_readiness", requestedByEventType: "WorkOrderPlanned" }),
@@ -415,15 +427,159 @@ describe("deferred engines never reach the port", () => {
       fakePort(),
     );
     if (result.outcome !== "accepted") throw new Error("unreachable");
-    expect(portCalls).toEqual([]);
+    expect(portCalls).toEqual(["workOrderMaterialsEvidence"]);
     expect(result.record.output.outcome).toBe("unavailable");
     if (result.record.output.outcome !== "unavailable") throw new Error("unreachable");
-    expect(result.record.output.unavailableReason).toBe(UNAVAILABLE_WORK_READINESS_DEFERRED);
-    expect(result.record.output.fields).toHaveLength(0);
-    expect(JSON.stringify(result.record)).not.toContain("ready");
+    expect(result.record.output.unavailableReason).toBe(UNAVAILABLE_NO_ENGINE_DATA);
+    expect(result.record.output.fields).toHaveLength(11);
+    for (const field of result.record.output.fields) {
+      expect(field.envelope.status, field.name).toBe("unavailable");
+      expect(field.valueStatus, field.name).toBeNull();
+    }
   });
 
-  it("records turnaround lead-time fit as unavailable with a field-less formula set", () => {
+  it("produces the eleven governed materials fields from raw work-order evidence", () => {
+    const port = fakePort({
+      materials: {
+        workOrderId: "wo-1",
+        assetId: ASSET,
+        requiredSpareIds: ["sp-brg"],
+        spareBalances: [
+          {
+            spareId: "sp-brg",
+            hasSparePart: true,
+            hasBalance: true,
+            onHandQty: 1,
+            reservedQty: 0,
+            reorderPoint: 1,
+          },
+        ],
+        evidence: {
+          sourceKey: "inventory",
+          sourceMode: "local",
+          capturedAt: "2026-07-27T06:00:00.000Z",
+          evidenceIds: ["wo-1", "sp-brg", "inv-brg"],
+        },
+      },
+    });
+    const result = executeRecompute(
+      createLedger(SCOPE),
+      request({
+        kind: "work_readiness",
+        requestedByEventType: "MaterialsChecked",
+        asOf: "2026-07-27T12:00:00.000Z",
+      }),
+      WORK_ORDER,
+      port,
+    );
+    if (result.outcome !== "accepted") throw new Error("unreachable");
+    expect(result.record.output.outcome).toBe("produced");
+    const slot = slotKey("work_readiness", WORK_ORDER);
+    expect(fieldOf(result.ledger, slot, "requiredSpareLineCount")?.envelope.value).toBe(1);
+    expect(fieldOf(result.ledger, slot, "totalRequiredQty")?.envelope.value).toBe(1);
+    expect(fieldOf(result.ledger, slot, "totalShortageQty")?.envelope.value).toBe(0);
+    expect(fieldOf(result.ledger, slot, "totalAvailableUnreservedQty")?.envelope.value).toBe(1);
+    expect(
+      fieldOf(result.ledger, slot, "postAllocationBufferToReorderPoint")?.envelope.value,
+    ).toBe(-1);
+    expect(fieldOf(result.ledger, slot, "minimumCoverageRatio")?.envelope.value).toBe(1);
+    for (const name of [
+      "engineeringReadinessGoverned",
+      "labourReadinessGoverned",
+      "permitsReadinessGoverned",
+    ]) {
+      expect(fieldOf(result.ledger, slot, name)?.envelope.status, name).toBe("unavailable");
+      expect(fieldOf(result.ledger, slot, name)?.envelope.value, name).toBeNull();
+    }
+  });
+
+  it("stamps the work-readiness record with the governed cardinality policy, and replays it deterministically", () => {
+    const materials = {
+      workOrderId: "wo-1",
+      assetId: ASSET,
+      requiredSpareIds: ["sp-brg"],
+      spareBalances: [
+        {
+          spareId: "sp-brg",
+          hasSparePart: true,
+          hasBalance: true,
+          onHandQty: 1,
+          reservedQty: 0,
+          reorderPoint: 1,
+        },
+      ],
+      evidence: {
+        sourceKey: "inventory" as const,
+        sourceMode: "local" as const,
+        capturedAt: "2026-07-27T06:00:00.000Z",
+        evidenceIds: ["wo-1", "sp-brg", "inv-brg"],
+      },
+    };
+    const run = () =>
+      executeRecompute(
+        createLedger(SCOPE),
+        request({
+          kind: "work_readiness",
+          requestedByEventType: "MaterialsChecked",
+          asOf: "2026-07-27T12:00:00.000Z",
+        }),
+        WORK_ORDER,
+        fakePort({ materials }),
+      );
+
+    const result = run();
+    if (result.outcome !== "accepted") throw new Error("unreachable");
+    const inputs = result.record.inputs;
+    if (inputs.reproducibility !== "referenced_only") throw new Error("unreachable");
+
+    const constantRef = inputs.references.find((r) => r.kind === "constant");
+    expect(constantRef).toBeDefined();
+    expect(constantRef!.id).toBe("required-spare-cardinality.v1");
+    expect(constantRef!.description.toLowerCase()).toContain("one required unit");
+    expect(inputs.cardinalityPolicyVersion).toBe("required-spare-cardinality.v1");
+
+    // Identical policy version and evidence replay to a byte-identical record.
+    const replay = run();
+    if (replay.outcome !== "accepted") throw new Error("unreachable");
+    expect(replay.record.calculationId).toBe(result.record.calculationId);
+    expect(JSON.stringify(replay.record.inputs)).toBe(JSON.stringify(result.record.inputs));
+  });
+
+  it("stamps no cardinality policy on an unrelated calculation kind", () => {
+    const port = fakePort({
+      turnaround: {
+        turnaroundScopeId: "wp-k201",
+        workOrderId: "wo-2",
+        assetId: ASSET,
+        requiredSpareIds: ["sp-seal"],
+        spareLeadTimes: [{ spareId: "sp-seal", leadTimeDays: 35 }],
+        turnaroundStartIso: "2026-10-23T00:00:00.000Z",
+        evidence: {
+          sourceKey: "turnaround_scheduling",
+          sourceMode: "local",
+          capturedAt: "2026-07-27T06:00:00.000Z",
+          evidenceIds: ["wp-k201", "ta-1", "wo-2", "sp-seal"],
+        },
+      },
+    });
+    const result = executeRecompute(
+      createLedger(SCOPE),
+      request({
+        kind: "turnaround_lead_time_fit",
+        requestedByEventType: "TurnaroundScopeRetained",
+        asOf: "2026-07-27T12:00:00.000Z",
+      }),
+      TURNAROUND,
+      port,
+    );
+    if (result.outcome !== "accepted") throw new Error("unreachable");
+    const inputs = result.record.inputs;
+    if (inputs.reproducibility !== "referenced_only") throw new Error("unreachable");
+    expect(inputs.references.some((r) => r.kind === "constant")).toBe(false);
+    expect(inputs.cardinalityPolicyVersion).toBeUndefined();
+  });
+
+  it("records turnaround lead-time fit as unavailable when the port has no scope evidence", () => {
     const result = executeRecompute(
       createLedger(SCOPE),
       request({
@@ -434,11 +590,47 @@ describe("deferred engines never reach the port", () => {
       fakePort(),
     );
     if (result.outcome !== "accepted") throw new Error("unreachable");
-    expect(portCalls).toEqual([]);
+    expect(portCalls).toEqual(["turnaroundLeadTimeEvidence"]);
     expect(result.record.output.outcome).toBe("unavailable");
     if (result.record.output.outcome !== "unavailable") throw new Error("unreachable");
-    expect(result.record.output.unavailableReason).toBe(UNAVAILABLE_LEAD_TIME_FIT_DEFERRED);
-    expect(result.record.output.fields).toHaveLength(0);
+    expect(result.record.output.unavailableReason).toBe(UNAVAILABLE_NO_ENGINE_DATA);
+    expect(result.record.output.fields).toHaveLength(4);
+  });
+
+  it("produces the golden 35/88/20696/53 fit from raw lead-time evidence", () => {
+    const port = fakePort({
+      turnaround: {
+        turnaroundScopeId: "wp-k201",
+        workOrderId: "wo-2",
+        assetId: ASSET,
+        requiredSpareIds: ["sp-seal"],
+        spareLeadTimes: [{ spareId: "sp-seal", leadTimeDays: 35 }],
+        turnaroundStartIso: "2026-10-23T00:00:00.000Z",
+        evidence: {
+          sourceKey: "turnaround_scheduling",
+          sourceMode: "local",
+          capturedAt: "2026-07-27T06:00:00.000Z",
+          evidenceIds: ["wp-k201", "ta-1", "wo-2", "sp-seal"],
+        },
+      },
+    });
+    const result = executeRecompute(
+      createLedger(SCOPE),
+      request({
+        kind: "turnaround_lead_time_fit",
+        requestedByEventType: "TurnaroundScopeRetained",
+        asOf: "2026-07-27T12:00:00.000Z",
+      }),
+      TURNAROUND,
+      port,
+    );
+    if (result.outcome !== "accepted") throw new Error("unreachable");
+    expect(result.record.output.outcome).toBe("produced");
+    const slot = slotKey("turnaround_lead_time_fit", TURNAROUND);
+    expect(fieldOf(result.ledger, slot, "maxLeadTimeDays")?.envelope.value).toBe(35);
+    expect(fieldOf(result.ledger, slot, "daysUntilTurnaround")?.envelope.value).toBe(88);
+    expect(fieldOf(result.ledger, slot, "availableDateEpochDay")?.envelope.value).toBe(20696);
+    expect(fieldOf(result.ledger, slot, "slackDays")?.envelope.value).toBe(53);
   });
 
   it("accepts both as MaterialsChecked-triggered readiness too", () => {

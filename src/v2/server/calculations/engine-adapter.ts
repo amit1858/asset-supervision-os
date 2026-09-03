@@ -17,6 +17,8 @@ import type {
   OutcomeRealisedValueResult,
   ProductionOeeResult,
   ProjectedValueResult,
+  TurnaroundLeadTimeEvidence,
+  WorkOrderMaterialsEvidence,
 } from "@/v2/domain/calculations/port";
 
 /**
@@ -65,6 +67,44 @@ function seedEvidence(
     capturedAt,
     evidenceIds,
   };
+}
+
+function inventoryEvidence(
+  capturedAt: string | null,
+  evidenceIds: readonly string[],
+): EngineEvidence {
+  return {
+    sourceKey: "inventory",
+    sourceMode: "local",
+    capturedAt,
+    evidenceIds,
+  };
+}
+
+function turnaroundEvidence(
+  capturedAt: string | null,
+  evidenceIds: readonly string[],
+): EngineEvidence {
+  return {
+    sourceKey: "turnaround_scheduling",
+    sourceMode: "local",
+    capturedAt,
+    evidenceIds,
+  };
+}
+
+/** The latest ISO `updatedAt` among the supplied instants, or `null` if none. */
+function maxUpdatedAt(instants: readonly string[]): string | null {
+  let latest: string | null = null;
+  for (const instant of instants) {
+    if (latest === null || instant.localeCompare(latest) > 0) latest = instant;
+  }
+  return latest;
+}
+
+/** Distinct spare ids, order-preserving. */
+function distinct(ids: readonly string[]): string[] {
+  return [...new Set(ids)];
 }
 
 function latestReadingAt(assetId: string): string | null {
@@ -203,6 +243,118 @@ class SeededEngineAdapter implements EnginePort {
       realisedValueUsd: governed ? outcome.realisedValue : null,
       unavailableReason: governed ? null : "no_validated_outcome_recorded",
       evidence: seedEvidence(outcome.recordedAt, [outcome.id]),
+    };
+  }
+
+  /**
+   * Raw materials evidence for a work order: its required-spare list and the
+   * DISTINCT spare balances behind it, verbatim. No readiness arithmetic happens
+   * here — shortage, coverage and buffer are the governed domain engine's job.
+   * A work order on another asset returns `null` (auditable unavailable).
+   */
+  workOrderMaterialsEvidence(
+    workOrderId: string,
+    assetId: string,
+  ): WorkOrderMaterialsEvidence | null {
+    const db = getDataset();
+    const workOrder = db.workOrders.find((w) => w.id === workOrderId);
+    if (!workOrder) return null;
+    if (workOrder.assetId !== assetId) return null;
+
+    const requiredSpareIds = workOrder.requiredSpareIds;
+    const spareIds = distinct(requiredSpareIds);
+
+    const balanceIds: string[] = [];
+    const capturedInstants: string[] = [];
+    const spareBalances = spareIds.map((spareId) => {
+      const part = db.spareParts.find((p) => p.id === spareId);
+      const balance = db.inventoryBalances.find((b) => b.sparePartId === spareId);
+      if (balance) {
+        balanceIds.push(balance.id);
+        capturedInstants.push(balance.updatedAt);
+      }
+      return {
+        spareId,
+        hasSparePart: part !== undefined,
+        hasBalance: balance !== undefined,
+        onHandQty: balance ? balance.onHandQty : null,
+        reservedQty: balance ? balance.reservedQty : null,
+        reorderPoint: balance ? balance.reorderPoint : null,
+      };
+    });
+
+    return {
+      workOrderId,
+      assetId,
+      requiredSpareIds,
+      spareBalances,
+      evidence: inventoryEvidence(maxUpdatedAt(capturedInstants), [
+        workOrderId,
+        ...spareIds,
+        ...balanceIds,
+      ]),
+    };
+  }
+
+  /**
+   * Raw lead-time evidence for ONE named work order within a turnaround scope.
+   *
+   * Uses exactly the subject's work order — sibling work orders on the same
+   * asset are never scanned, so the fit answered is the fit of the scope that
+   * was asked about. Lead times and the window start are read verbatim; the fit
+   * arithmetic is the governed domain engine's.
+   */
+  turnaroundLeadTimeEvidence(
+    turnaroundScopeId: string,
+    workOrderId: string,
+    assetId: string,
+  ): TurnaroundLeadTimeEvidence | null {
+    const db = getDataset();
+    const workPackage = db.turnaroundWorkPackages.find(
+      (p) => p.id === turnaroundScopeId,
+    );
+    if (!workPackage) return null;
+    if (workPackage.assetId !== assetId) return null;
+
+    const workOrder = db.workOrders.find((w) => w.id === workOrderId);
+    if (!workOrder) return null;
+    if (workOrder.assetId !== assetId) return null;
+
+    const project = db.turnaroundProjects.find(
+      (pr) => pr.id === workPackage.turnaroundProjectId,
+    );
+    const turnaroundStartIso = project ? project.windowStart : null;
+
+    const requiredSpareIds = workOrder.requiredSpareIds;
+    const spareIds = distinct(requiredSpareIds);
+
+    const capturedInstants: string[] = [];
+    for (const spareId of spareIds) {
+      const balance = db.inventoryBalances.find((b) => b.sparePartId === spareId);
+      if (balance) capturedInstants.push(balance.updatedAt);
+    }
+
+    const spareLeadTimes = spareIds.map((spareId) => {
+      const part = db.spareParts.find((p) => p.id === spareId);
+      return {
+        spareId,
+        leadTimeDays: part ? part.leadTimeDays : null,
+      };
+    });
+
+    return {
+      turnaroundScopeId,
+      workOrderId,
+      assetId,
+      requiredSpareIds,
+      spareLeadTimes,
+      turnaroundStartIso,
+      evidence: turnaroundEvidence(maxUpdatedAt(capturedInstants), [
+        turnaroundScopeId,
+        workPackage.turnaroundProjectId,
+        workOrderId,
+        ...spareIds,
+      ]),
     };
   }
 }
