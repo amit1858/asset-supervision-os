@@ -13,6 +13,17 @@ import path from "node:path";
 
 const SRC = path.join(process.cwd(), "src");
 
+/**
+ * Canonicalize a filesystem-relative path into a stable repository path using
+ * forward slashes. `path.relative` yields OS-native separators (`\` on
+ * Windows), so every relative path is normalized here before it enters the
+ * graph representation, a comparison or a failure message — keeping assertions
+ * identical on macOS/Linux and correct on Windows.
+ */
+function toRepositoryPath(value: string): string {
+  return value.split(path.sep).join("/");
+}
+
 const CLIENT_ENTRIES = [
   "v2/domain/index.ts",
   "v2/domain/calculations/port.ts",
@@ -77,7 +88,7 @@ describe("slice 2.1c client dependency graph", () => {
     it(`${entry} reaches no server adapter, engine or seeded dataset`, () => {
       const { visited, externals } = graph(entry);
       for (const forbidden of FORBIDDEN) {
-        expect(visited.has(forbidden), `${entry} → ${path.relative(SRC, forbidden)}`).toBe(false);
+        expect(visited.has(forbidden), `${entry} → ${toRepositoryPath(path.relative(SRC, forbidden))}`).toBe(false);
       }
       expect(externals.has("server-only"), `${entry} imports server-only`).toBe(false);
     });
@@ -85,7 +96,7 @@ describe("slice 2.1c client dependency graph", () => {
 
   it("keeps the pure port free of any transitive runtime dependency", () => {
     const { visited } = graph("v2/domain/calculations/port.ts");
-    const files = [...visited].map((f) => path.relative(SRC, f)).sort();
+    const files = [...visited].map((f) => toRepositoryPath(path.relative(SRC, f))).sort();
     expect(files).toEqual([
       "context/types.ts",
       "domain/integration.ts",
@@ -105,7 +116,7 @@ describe("the server adapter is genuinely server-only", () => {
 
   it("reaches the real engines and dataset, proving it is not a stub", () => {
     const { visited } = graph(ADAPTER);
-    const files = [...visited].map((f) => path.relative(SRC, f));
+    const files = [...visited].map((f) => toRepositoryPath(path.relative(SRC, f)));
     expect(files).toContain("data/k201-analysis.ts");
     expect(files).toContain("data/seed.ts");
     expect(files).toContain("data/constants.ts");
@@ -126,7 +137,7 @@ describe("the server adapter is genuinely server-only", () => {
         // Import specifiers only — a doc comment naming the adapter is
         // documentation, not a dependency.
         if (importsOf(full).some((spec) => spec.includes("calculations/engine-adapter"))) {
-          offenders.push(path.relative(SRC, full));
+          offenders.push(toRepositoryPath(path.relative(SRC, full)));
         }
       }
     };
