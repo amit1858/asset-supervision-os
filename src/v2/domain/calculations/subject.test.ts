@@ -189,7 +189,7 @@ describe("request kind to trigger and subject mapping", () => {
         if (!VALID_TRIGGERS[kind].includes(type)) invalidPairs += 1;
       }
     }
-    // 6 kinds x 16 event types = 96 pairs; 9 are valid, so 87 must be refused.
-    expect(invalidPairs).toBe(87);
+    // 6 kinds x 17 event types = 102 pairs; 9 are valid, so 93 must be refused.
+    expect(invalidPairs).toBe(93);
   });
 });

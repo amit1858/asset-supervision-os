@@ -53,7 +53,12 @@ export function phaseIndex(phase: LifecyclePhase): number {
  *                       lifecycle is blocked at `DECISION_PROPOSED` (B-2).
  * - `pending_endorsement` — approved and above threshold; awaiting the Plant
  *                       Manager. Approval is NOT endorsement.
- * - `rejected`        — the decision or the endorsement was declined.
+ * - `rejected`        — the decision or the endorsement was declined. This is
+ *                       TERMINAL: a declined recommendation is never revised in
+ *                       place; a fresh governed thread is required.
+ * - `returned_for_rework` — the recommendation was returned to its author. This
+ *                       is the ONLY governed re-entry: a revised recommendation
+ *                       may then be generated.
  * - `recorded`        — the governed decision is complete.
  */
 export type DecisionLifecycleStatus =
@@ -61,6 +66,7 @@ export type DecisionLifecycleStatus =
   | "approved"
   | "pending_endorsement"
   | "rejected"
+  | "returned_for_rework"
   | "recorded";
 
 /**

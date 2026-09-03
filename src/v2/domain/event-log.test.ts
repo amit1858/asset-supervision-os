@@ -4,6 +4,7 @@ import { ANCHOR_NOW } from "@/data/constants";
 import { makeEnvelope, type ValueEnvelope } from "./envelope";
 import {
   GOVERNED_EVENT_TYPES,
+  isDecisionGated,
   prepareEvent,
   type EventActor,
   type GovernedEvent,
@@ -11,6 +12,7 @@ import {
 } from "./events";
 import {
   appendEvent,
+  appendGovernedDecisionEvent,
   createAggregate,
   GovernedIntegrityError,
   replay,
@@ -132,7 +134,13 @@ function k201History(): GovernedEvent[] {
 }
 
 function accepted(aggregate: GovernedAggregate, event: GovernedEvent): GovernedAggregate {
-  const result = appendEvent(aggregate, event);
+  // The K-201 history includes gated decision events; in a real system those are
+  // committed only through the governed case. This helper drives the internal
+  // authorised seam directly so the deterministic append/replay tests below can
+  // still build the full signal→realised-value chain.
+  const result = isDecisionGated(event.type)
+    ? appendGovernedDecisionEvent(aggregate, event)
+    : appendEvent(aggregate, event);
   if (result.outcome !== "accepted") {
     throw new Error(`expected acceptance, received ${result.outcome}: ${result.reason}`);
   }
@@ -250,6 +258,7 @@ describe("actor enforcement", () => {
     RecommendationGenerated: { recommendationId: "rec-1", assessmentId: "assess-1" },
     DecisionApproved: { decisionId: "dec-1", recommendationId: "rec-1" },
     DecisionRejected: { decisionId: "dec-1", recommendationId: "rec-1" },
+    DecisionReturned: { decisionId: "dec-1", recommendationId: "rec-1" },
     EndorsementGranted: {
       endorsementId: "end-1",
       decisionId: "dec-1",
@@ -274,8 +283,8 @@ describe("actor enforcement", () => {
     RealisedValueRecorded: { outcomeId: "out-1", realisedValue: envelope(1_094_400) },
   };
 
-  it("rejects the assistant as author of all sixteen governed event types", () => {
-    expect(GOVERNED_EVENT_TYPES).toHaveLength(16);
+  it("rejects the assistant as author of all seventeen governed event types", () => {
+    expect(GOVERNED_EVENT_TYPES).toHaveLength(17);
     const aggregate = seeded(3);
     const before = JSON.stringify(toPersistableEvents(aggregate));
     const snapshotBefore = JSON.stringify(aggregate.snapshot);
@@ -359,6 +368,28 @@ describe("actor enforcement", () => {
         ),
       ).outcome,
     ).toBe("accepted");
+  });
+
+  it("rejects every gated decision event at the public boundary", () => {
+    // A permitted persona at the correct phase still cannot append a gated event
+    // through the public boundary: gated events must be committed through the
+    // governed case, which evaluates capability and appends audit evidence.
+    const aggregate = seeded(3); // phase DECISION_PROPOSED
+    const result = appendEvent(
+      aggregate,
+      make(
+        4,
+        "DecisionApproved",
+        { decisionId: "dec-1", recommendationId: "rec-1" },
+        { actor: MANAGER },
+      ),
+    );
+    expect(result.outcome).toBe("rejected");
+    if (result.outcome === "rejected") {
+      expect(result.reason).toBe("gated_event_not_appendable");
+    }
+    expect(result.aggregate).toBe(aggregate);
+    expect(aggregate.events).toHaveLength(3);
   });
 
   it("rejects a malformed or incomplete actor", () => {

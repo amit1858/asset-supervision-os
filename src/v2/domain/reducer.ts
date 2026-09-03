@@ -52,6 +52,7 @@ export const PERMITTED_PHASES: Readonly<
   ]),
   DecisionApproved: Object.freeze<LifecyclePhase[]>(["DECISION_PROPOSED"]),
   DecisionRejected: Object.freeze<LifecyclePhase[]>(["DECISION_PROPOSED"]),
+  DecisionReturned: Object.freeze<LifecyclePhase[]>(["DECISION_PROPOSED"]),
   EndorsementGranted: Object.freeze<LifecyclePhase[]>(["DECISION_PROPOSED"]),
   EndorsementDeclined: Object.freeze<LifecyclePhase[]>(["DECISION_PROPOSED"]),
   WorkOrderPlanned: Object.freeze<LifecyclePhase[]>(["DECISION_RECORDED"]),
@@ -254,10 +255,11 @@ export function reduce(snapshot: LifecycleSnapshot, event: GovernedEvent): Reduc
       if (assessmentId !== snapshot.governingAssessmentId) return MISMATCH;
 
       if (snapshot.phase === "DECISION_PROPOSED") {
-        // Rejection recovery is the ONLY re-entry: a revised recommendation
-        // after a rejected decision. Reusing the rejected recommendation ID is
-        // deterministically rejected as a subject reference mismatch.
-        if (snapshot.decisionStatus !== "rejected") return INVALID;
+        // Return-for-rework is the ONLY re-entry: a revised recommendation
+        // after the previous one was RETURNED. A terminal `DecisionRejected`
+        // decline is never revised in place. Reusing the returned recommendation
+        // ID is deterministically rejected as a subject reference mismatch.
+        if (snapshot.decisionStatus !== "returned_for_rework") return INVALID;
         if (
           recommendationId === snapshot.currentRecommendationId ||
           snapshot.supersededRecommendationIds.includes(recommendationId)
@@ -303,6 +305,23 @@ export function reduce(snapshot: LifecycleSnapshot, event: GovernedEvent): Reduc
       return commit(snapshot, event, {
         currentDecisionId: event.payload.decisionId,
         decisionStatus: "rejected",
+      });
+    }
+
+    case "DecisionReturned": {
+      // A return moves the recommendation back to its author for rework. It is
+      // the sole governed re-entry path and, unlike a decline, is not terminal:
+      // the decision axis becomes `returned_for_rework` and the approval /
+      // endorsement pointers are cleared so a revised recommendation can follow.
+      if (snapshot.decisionStatus !== "proposed") return INVALID;
+      if (event.payload.recommendationId !== snapshot.currentRecommendationId) {
+        return MISMATCH;
+      }
+      return commit(snapshot, event, {
+        currentDecisionId: event.payload.decisionId,
+        decisionStatus: "returned_for_rework",
+        approvalEventId: null,
+        endorsementEventId: null,
       });
     }
 

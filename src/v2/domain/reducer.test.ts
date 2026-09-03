@@ -562,7 +562,33 @@ describe("approval, endorsement and the exposure threshold", () => {
   });
 });
 
-describe("rejection recovery", () => {
+describe("return-for-rework recovery", () => {
+  function returnedAggregate(): LifecycleSnapshot {
+    let snapshot = base();
+    snapshot = ok(
+      reduce(
+        snapshot,
+        event("AssessmentComputed", {
+          assessmentId: "a1",
+          assetId: "K-201",
+          valueAtStake: envelope(1_620_156),
+        }),
+      ),
+    ).snapshot;
+    snapshot = ok(
+      reduce(
+        snapshot,
+        event("RecommendationGenerated", { recommendationId: "rec-1", assessmentId: "a1" }),
+      ),
+    ).snapshot;
+    return ok(
+      reduce(
+        snapshot,
+        event("DecisionReturned", { decisionId: "dec-1", recommendationId: "rec-1" }),
+      ),
+    ).snapshot;
+  }
+
   function rejectedAggregate(): LifecycleSnapshot {
     let snapshot = base();
     snapshot = ok(
@@ -589,13 +615,13 @@ describe("rejection recovery", () => {
     ).snapshot;
   }
 
-  it("accepts a revised recommendation and resets the decision axis", () => {
-    const rejectedSnapshot = rejectedAggregate();
-    expect(rejectedSnapshot.decisionStatus).toBe("rejected");
+  it("accepts a revised recommendation and resets the decision axis after a return", () => {
+    const returnedSnapshot = returnedAggregate();
+    expect(returnedSnapshot.decisionStatus).toBe("returned_for_rework");
 
     const revised = ok(
       reduce(
-        rejectedSnapshot,
+        returnedSnapshot,
         event("RecommendationGenerated", { recommendationId: "rec-2", assessmentId: "a1" }),
       ),
     );
@@ -608,13 +634,24 @@ describe("rejection recovery", () => {
     expect(revised.snapshot.supersededRecommendationIds).toEqual(["rec-1"]);
   });
 
-  it("deterministically rejects reuse of the rejected recommendation id", () => {
+  it("deterministically rejects reuse of the returned recommendation id", () => {
     expect(
       reduce(
-        rejectedAggregate(),
+        returnedAggregate(),
         event("RecommendationGenerated", { recommendationId: "rec-1", assessmentId: "a1" }),
       ),
     ).toEqual({ ok: false, reason: "subject_reference_mismatch" });
+  });
+
+  it("treats a decline as terminal: no revised recommendation may follow", () => {
+    const rejectedSnapshot = rejectedAggregate();
+    expect(rejectedSnapshot.decisionStatus).toBe("rejected");
+    expect(
+      reduce(
+        rejectedSnapshot,
+        event("RecommendationGenerated", { recommendationId: "rec-2", assessmentId: "a1" }),
+      ),
+    ).toEqual({ ok: false, reason: "invalid_transition" });
   });
 
   it("rejects a revised recommendation while a decision is merely proposed", () => {

@@ -41,11 +41,13 @@ export const PERSONAS: Record<PersonaId, PersonaDefinition> = {
       "approve_reliability_decision",
       "approve_turnaround_scope",
       "validate_operational_outcome",
+      "endorse_high_exposure_reliability_decision",
     ],
     approvalAuthority: [
       "approve_reliability_decision",
       "approve_turnaround_scope",
       "validate_operational_outcome",
+      "endorse_high_exposure_reliability_decision",
     ],
     readWriteScope: {
       read: ["plant", "assets", "oee", "turnaround", "recommendations", "value_realisation"],

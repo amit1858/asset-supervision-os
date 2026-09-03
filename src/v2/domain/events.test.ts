@@ -32,9 +32,13 @@ function proposedSignal(): ProposedEvent {
 }
 
 describe("GovernedEventType", () => {
-  it("declares exactly the sixteen approved events", () => {
-    expect(GOVERNED_EVENT_TYPES).toHaveLength(16);
-    expect(new Set(GOVERNED_EVENT_TYPES).size).toBe(16);
+  it("declares exactly the seventeen approved events", () => {
+    expect(GOVERNED_EVENT_TYPES).toHaveLength(17);
+    expect(new Set(GOVERNED_EVENT_TYPES).size).toBe(17);
+  });
+
+  it("declares DecisionReturned as the return-for-rework event", () => {
+    expect(GOVERNED_EVENT_TYPES).toContain("DecisionReturned");
   });
 
   it("does not declare EvidenceUnavailableRecorded", () => {

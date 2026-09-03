@@ -2,6 +2,7 @@ import type { ValueEnvelope } from "./envelope";
 import {
   ENVELOPE_FIELD_BY_TYPE,
   GOVERNED_EVENT_TYPES,
+  isDecisionGated,
   PAYLOAD_IDENTITY_FIELDS,
   type EventActor,
   type GovernedEvent,
@@ -10,6 +11,7 @@ import type { LifecycleSnapshot } from "./lifecycle";
 import type { RecomputeRequest } from "./recompute";
 import { initialSnapshot, reduce } from "./reducer";
 import type { RejectionReason } from "./rejection";
+import { deepFreeze, isCanonicalInstant, isNonEmpty } from "./event-log-core";
 
 /** Identity of the asset supervision case an aggregate represents. */
 export interface AggregateInit {
@@ -108,32 +110,11 @@ export type ReplayResult =
       readonly index: number;
     };
 
-/** Canonical UTC instant: `YYYY-MM-DDTHH:mm:ss.sssZ`. Nothing else is accepted. */
-const CANONICAL_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-
-function isCanonicalInstant(value: unknown): value is string {
-  if (typeof value !== "string" || !CANONICAL_UTC.test(value)) return false;
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) return false;
-  // Round-tripping rejects impossible dates such as 2026-02-30.
-  return new Date(ms).toISOString() === value;
-}
-
-function isNonEmpty(value: unknown): value is string {
-  return typeof value === "string" && value.trim() !== "";
-}
+/** Canonical UTC instant validation lives in `event-log-core.ts`. */
 
 // ---------------------------------------------------------------------------
 // Construction
 // ---------------------------------------------------------------------------
-
-function deepFreeze<T>(value: T): T {
-  if (typeof value !== "object" || value === null) return value;
-  for (const key of Object.getOwnPropertyNames(value)) {
-    deepFreeze((value as Record<string, unknown>)[key]);
-  }
-  return Object.freeze(value);
-}
 
 function brandEvent(event: GovernedEvent): AcceptedGovernedEvent {
   // Defensive ownership: the accepted record is a deeply frozen clone, so a
@@ -392,10 +373,20 @@ function rejected(
  * Append one governed event. Checks run in a fixed order and stop at the first
  * failure. Every result carries the aggregate, so a rejected or ignored append
  * is provably state-preserving: history is append-only and is never rewritten.
+ *
+ * `appendGoverned` is the internal implementation. The PUBLIC `appendEvent`
+ * calls it with `allowGated = false`, so a decision, endorsement or
+ * outcome-validation event can never reach history through the public boundary:
+ * it must progress through the governed case, which resolves the deciding
+ * persona to a governed capability and records deterministic audit evidence.
+ * `appendGovernedDecisionEvent` is the internal seam the governed case uses to
+ * commit a gated event AFTER authority evaluation; it is never reachable from a
+ * client path (proven by the dependency boundary tests).
  */
-export function appendEvent(
+function appendGoverned(
   aggregate: GovernedAggregate,
   event: GovernedEvent,
+  allowGated: boolean,
 ): AppendResult {
   // 1. Runtime integrity of the aggregate itself.
   if (!isGovernedAggregate(aggregate)) {
@@ -421,6 +412,17 @@ export function appendEvent(
   const actorFailure = validateActor(event);
   if (actorFailure) {
     return rejected(aggregate, actorFailure.reason, actorFailure.detail);
+  }
+
+  // 3a. Authority boundary. A gated decision event may never be appended
+  //     directly: only the governed case, having evaluated capability and
+  //     recorded audit evidence, may commit one via the internal seam.
+  if (!allowGated && isDecisionGated(event.type)) {
+    return rejected(
+      aggregate,
+      "gated_event_not_appendable",
+      `${event.type} must be committed through the governed case, which evaluates the deciding persona and records governed audit evidence.`,
+    );
   }
 
   // 4–5. Identity.
@@ -489,6 +491,30 @@ export function appendEvent(
 }
 
 /**
+ * Public append boundary. Rejects the six gated decision events outright — they
+ * must be committed through the governed case. Every ungated fact flows through
+ * the same deterministic checks as before.
+ */
+export function appendEvent(
+  aggregate: GovernedAggregate,
+  event: GovernedEvent,
+): AppendResult {
+  return appendGoverned(aggregate, event, false);
+}
+
+/**
+ * INTERNAL seam — commit a gated decision event that the governed case has
+ * already authorised. Not part of any client-reachable barrel; a dependency
+ * boundary test proves only `governed-case.ts` imports it.
+ */
+export function appendGovernedDecisionEvent(
+  aggregate: GovernedAggregate,
+  event: GovernedEvent,
+): AppendResult {
+  return appendGoverned(aggregate, event, true);
+}
+
+/**
  * Rebuild an aggregate from persisted raw events.
  *
  * Replay FAILS CLOSED at the first rejection — no skipping, no partial state.
@@ -516,7 +542,7 @@ export function replay(
       };
     }
 
-    const result = appendEvent(aggregate, event);
+    const result = appendGoverned(aggregate, event, true);
     if (result.outcome !== "accepted") {
       return {
         outcome: "rejected",

@@ -28,6 +28,8 @@ export type RejectionReason =
   | "subject_reference_mismatch"
   // actor
   | "actor_not_permitted"
+  // authority boundary — a gated decision event must go through the governed case
+  | "gated_event_not_appendable"
   // lifecycle
   | "event_not_permitted_in_phase"
   | "invalid_transition"

@@ -65,6 +65,7 @@ export type {
   ConditionSignalIngestedPayload,
   DecisionApprovedPayload,
   DecisionRejectedPayload,
+  DecisionReturnedPayload,
   EndorsementDeclinedPayload,
   EndorsementGrantedPayload,
   EventActor,
@@ -86,7 +87,12 @@ export type {
   WorkExecutedPayload,
   WorkOrderPlannedPayload,
 } from "./events";
-export { GOVERNED_EVENT_TYPES, prepareEvent } from "./events";
+export {
+  DECISION_GATED_EVENT_TYPES,
+  GOVERNED_EVENT_TYPES,
+  isDecisionGated,
+  prepareEvent,
+} from "./events";
 
 export type { RejectionReason } from "./rejection";
 
@@ -283,3 +289,77 @@ export {
 } from "./calculations/selectors";
 
 export { executeRecompute } from "./calculations/execute";
+
+// --- Slice 2.2 — human authority, decisions & audit evidence --------------
+//
+// The append-only audit trail and the branded governed case. The internal
+// authorised seam that commits a gated event is deliberately NOT exported
+// anywhere; only the governed case imports it, so the only way to append a
+// gated decision is through capability evaluation and audit. Server-only
+// command orchestration lives under `src/v2/server/**` and is not re-exported
+// here.
+//
+// This barrel is client-reachable, so it re-exports READ-ONLY types and
+// accessors ONLY. The state-changing case entry points (`openCase`,
+// `recordGovernedDecision`, `recordGovernedFact`, `replayCase`) are deliberately
+// NOT re-exported: a client must never be able to mint a case or drive the
+// governed boundary with a fabricated context. The server orchestrator imports
+// them directly from `./governed-case` under `src/v2/server/**`. A boundary test
+// proves this barrel exposes no mutation entry point.
+
+export type {
+  AuthorityWorkflowRule,
+  AuthorizationPolicyRef,
+  GovernedAct,
+} from "./authority-policy";
+export {
+  AUTHORITY_WORKFLOW_POLICY,
+  AUTHORITY_WORKFLOW_POLICY_ID,
+  AUTHORITY_WORKFLOW_POLICY_VERSION,
+  authorizationPolicyRef,
+  GOVERNED_ACTS,
+  isEndorsementAct,
+  ruleForAct,
+} from "./authority-policy";
+
+export type {
+  AuditActor,
+  AuthorityContext,
+  AuthorityDecision,
+  AuthorizationDescriptor,
+  AuthorizationMode,
+  AuthorityRejectionReason,
+  CapabilityResolver,
+} from "./authority";
+export { evaluateAuthority } from "./authority";
+
+export type {
+  AuditAction,
+  AuditActorRecord,
+  AuditRecord,
+  AuditResult,
+} from "./audit";
+export {
+  auditIdOf,
+  buildAuditRecord,
+  commandFingerprint,
+  stableStringify,
+} from "./audit";
+
+export type {
+  CaseOutcome,
+  CaseResult,
+  CommandContext,
+  GatedPayload,
+  GovernedCase,
+  GovernedDecisionCommand,
+  HumanCommandContext,
+  ReplayCaseResult,
+  SystemCommandContext,
+} from "./governed-case";
+export {
+  caseAggregate,
+  caseReceipt,
+  caseTrail,
+  isGovernedCase,
+} from "./governed-case";

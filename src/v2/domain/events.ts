@@ -24,6 +24,7 @@ export type GovernedEventType =
   | "RecommendationGenerated"
   | "DecisionApproved"
   | "DecisionRejected"
+  | "DecisionReturned"
   | "EndorsementGranted"
   | "EndorsementDeclined"
   | "WorkOrderPlanned"
@@ -35,7 +36,7 @@ export type GovernedEventType =
   | "OutcomeConfirmed"
   | "RealisedValueRecorded";
 
-/** Runtime membership test data for `malformed_event`. Exactly sixteen. */
+/** Runtime membership test data for `malformed_event`. Exactly seventeen. */
 export const GOVERNED_EVENT_TYPES: readonly GovernedEventType[] = Object.freeze([
   "ConditionSignalIngested",
   "ProductionObservationIngested",
@@ -43,6 +44,7 @@ export const GOVERNED_EVENT_TYPES: readonly GovernedEventType[] = Object.freeze(
   "RecommendationGenerated",
   "DecisionApproved",
   "DecisionRejected",
+  "DecisionReturned",
   "EndorsementGranted",
   "EndorsementDeclined",
   "WorkOrderPlanned",
@@ -54,6 +56,31 @@ export const GOVERNED_EVENT_TYPES: readonly GovernedEventType[] = Object.freeze(
   "OutcomeConfirmed",
   "RealisedValueRecorded",
 ] as const);
+
+/**
+ * The six governed events that record a HUMAN decision, endorsement or outcome
+ * validation. They can never be appended through the public boundary directly:
+ * a decision, endorsement or outcome-validation event must progress through the
+ * governed case, which resolves the deciding persona to a governed capability
+ * and records deterministic audit evidence. See `appendEvent`.
+ */
+export const DECISION_GATED_EVENT_TYPES: readonly GovernedEventType[] = Object.freeze([
+  "DecisionApproved",
+  "DecisionRejected",
+  "DecisionReturned",
+  "EndorsementGranted",
+  "EndorsementDeclined",
+  "OutcomeConfirmed",
+] as const);
+
+const DECISION_GATED_SET: ReadonlySet<GovernedEventType> = new Set(
+  DECISION_GATED_EVENT_TYPES,
+);
+
+/** True when a governed event records a gated human decision act. */
+export function isDecisionGated(type: GovernedEventType): boolean {
+  return DECISION_GATED_SET.has(type);
+}
 
 // ---------------------------------------------------------------------------
 // Actors
@@ -125,6 +152,17 @@ export interface DecisionRejectedPayload {
   readonly recommendationId: string;
 }
 
+/**
+ * A recommendation returned to its author for rework. Unlike `DecisionRejected`
+ * (a terminal decline of the recommendation), a return is the ONLY governed
+ * re-entry: it moves the decision axis to `returned_for_rework`, from which a
+ * revised recommendation may be generated.
+ */
+export interface DecisionReturnedPayload {
+  readonly decisionId: string;
+  readonly recommendationId: string;
+}
+
 export interface EndorsementGrantedPayload {
   readonly endorsementId: string;
   readonly decisionId: string;
@@ -190,6 +228,7 @@ export interface GovernedEventPayloads {
   RecommendationGenerated: RecommendationGeneratedPayload;
   DecisionApproved: DecisionApprovedPayload;
   DecisionRejected: DecisionRejectedPayload;
+  DecisionReturned: DecisionReturnedPayload;
   EndorsementGranted: EndorsementGrantedPayload;
   EndorsementDeclined: EndorsementDeclinedPayload;
   WorkOrderPlanned: WorkOrderPlannedPayload;
@@ -244,6 +283,7 @@ export const PAYLOAD_IDENTITY_FIELDS: Readonly<
   RecommendationGenerated: Object.freeze(["recommendationId", "assessmentId"]),
   DecisionApproved: Object.freeze(["decisionId", "recommendationId"]),
   DecisionRejected: Object.freeze(["decisionId", "recommendationId"]),
+  DecisionReturned: Object.freeze(["decisionId", "recommendationId"]),
   EndorsementGranted: Object.freeze(["endorsementId", "decisionId", "approvalEventId"]),
   EndorsementDeclined: Object.freeze(["endorsementId", "decisionId", "approvalEventId"]),
   WorkOrderPlanned: Object.freeze(["workOrderId", "decisionId"]),

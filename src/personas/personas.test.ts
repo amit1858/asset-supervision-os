@@ -72,11 +72,24 @@ describe("persona registry", () => {
 });
 
 describe("capability model", () => {
-  it("declares 21 capabilities with metadata", () => {
-    expect(ALL_CAPABILITIES).toHaveLength(21);
+  it("declares 22 capabilities with metadata", () => {
+    expect(ALL_CAPABILITIES).toHaveLength(22);
     for (const c of ALL_CAPABILITIES) {
       expect(CAPABILITIES[c].label.length).toBeGreaterThan(0);
     }
+  });
+
+  it("grants high-exposure endorsement to the Plant Manager alone", () => {
+    // Slice 2.2: the endorsement capability is additive and authority-flagged.
+    expect(isAuthorityCapability("endorse_high_exposure_reliability_decision")).toBe(true);
+    expect(personaCan("plant_manager", "endorse_high_exposure_reliability_decision")).toBe(true);
+    expect(PERSONAS.plant_manager.approvalAuthority).toContain(
+      "endorse_high_exposure_reliability_decision",
+    );
+    // The Reliability Manager approves/declines/returns/validates but never endorses.
+    expect(personaCan("reliability_manager", "endorse_high_exposure_reliability_decision")).toBe(
+      false,
+    );
   });
 
   it("only grants capabilities from the central vocabulary", () => {

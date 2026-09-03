@@ -51,7 +51,8 @@ export type Capability =
   | "review_ai_evidence"
   | "configure_model_runtime"
   | "view_token_economics"
-  | "validate_operational_outcome";
+  | "validate_operational_outcome"
+  | "endorse_high_exposure_reliability_decision";
 
 export type IconName =
   | "overview"

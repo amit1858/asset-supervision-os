@@ -35,6 +35,7 @@ export const CAPABILITIES: Record<Capability, CapabilityMeta> = {
   configure_model_runtime: { id: "configure_model_runtime", label: "Configure model runtime", description: "Configure providers, models, and runtimes.", authority: true },
   view_token_economics: { id: "view_token_economics", label: "View token economics", description: "View Return on Token Spend and AI cost accounting (ledgers, provider pricing).", authority: false },
   validate_operational_outcome: { id: "validate_operational_outcome", label: "Validate operational outcome", description: "Validate an operational outcome and realised value.", authority: true },
+  endorse_high_exposure_reliability_decision: { id: "endorse_high_exposure_reliability_decision", label: "Endorse high-exposure reliability decision", description: "Endorse, or decline endorsement of, an approved reliability decision whose exposure meets the high-exposure threshold.", authority: true },
 };
 
 export const ALL_CAPABILITIES: Capability[] = Object.keys(CAPABILITIES) as Capability[];
