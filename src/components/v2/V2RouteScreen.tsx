@@ -7,6 +7,8 @@ import { V2Shell } from "./V2Shell";
 import { OperationalThread } from "./OperationalThread";
 import { V2Placeholder } from "./V2Placeholder";
 import { V2Restricted } from "./V2Restricted";
+import { ReliabilityWorkspace } from "./reliability/ReliabilityWorkspace";
+import { getReliabilityWorkspaceView } from "@/v2/server/reliability/reliability-workspace-view";
 import { getV2Route } from "@/v2/routes";
 import { canAccessV2Route } from "@/v2/access";
 import { v2LandingRoute } from "@/v2/nav";
@@ -52,7 +54,11 @@ export function V2RouteScreen({ routeKey }: { routeKey: string }) {
       <div className="mx-auto w-full max-w-content space-y-6 px-6 py-6">
         {brief ? <MyBrief brief={brief} /> : null}
         <OperationalThread />
-        <V2Placeholder route={route} />
+        {route.key === "reliability" ? (
+          <ReliabilityWorkspace view={getReliabilityWorkspaceView(ctx.personaId)} />
+        ) : (
+          <V2Placeholder route={route} />
+        )}
       </div>
     </V2Shell>
   );

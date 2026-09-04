@@ -13,6 +13,11 @@ import { V2Shell } from "./V2Shell";
 import { OperationalThread } from "./OperationalThread";
 import { V2Placeholder } from "./V2Placeholder";
 import { V2Restricted } from "./V2Restricted";
+import { AssetReliabilityExperience } from "./reliability/AssetReliabilityExperience";
+import {
+  getK201ReliabilityView,
+  K201_TAG,
+} from "@/v2/server/reliability/asset-reliability-view";
 import { getV2Route } from "@/v2/routes";
 import { canAccessV2Route } from "@/v2/access";
 import { v2LandingRoute } from "@/v2/nav";
@@ -73,7 +78,11 @@ export function V2AssetScreen({ tag: rawTag }: { tag: string }) {
       />
       <div className="mx-auto w-full max-w-content space-y-6 px-6 py-6">
         <OperationalThread assetTag={asset.tag} />
-        <V2Placeholder route={route} />
+        {asset.tag === K201_TAG ? (
+          <AssetReliabilityExperience view={getK201ReliabilityView(ctx.personaId)} />
+        ) : (
+          <V2Placeholder route={route} />
+        )}
       </div>
     </V2Shell>
   );
