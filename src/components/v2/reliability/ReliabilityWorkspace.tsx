@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatUtcInstant, type ReliabilityWorkspaceView } from "@/v2/reliability/view-types";
+import { ProportionBar } from "./visuals";
 import { SectionCard } from "./primitives";
 
 /**
@@ -41,6 +42,7 @@ export function ReliabilityWorkspace({ view }: { view: ReliabilityWorkspaceView 
                   <th className="px-2 py-1.5 font-medium">Exposure</th>
                   <th className="px-2 py-1.5 font-medium">Decision</th>
                   <th className="px-2 py-1.5 font-medium">Next action</th>
+                  <th className="px-2 py-1.5 font-medium">Open</th>
                 </tr>
               </thead>
               <tbody>
@@ -55,10 +57,20 @@ export function ReliabilityWorkspace({ view }: { view: ReliabilityWorkspaceView 
                       </Link>
                       <div className="text-[11px] text-text-muted">{row.tag}</div>
                     </td>
-                    <td className="px-2 py-2 tabular-nums text-text-primary">
-                      {row.healthDisplay}
+                    <td className="px-2 py-2 text-text-primary">
+                      <div className="tabular-nums">{row.healthDisplay}</div>
+                      <ProportionBar
+                        ratio={row.healthValue === null ? null : row.healthValue / 100}
+                        label={`Health ${row.healthDisplay} out of 100`}
+                      />
                     </td>
-                    <td className="px-2 py-2 tabular-nums text-text-primary">{row.riskDisplay}</td>
+                    <td className="px-2 py-2 text-text-primary">
+                      <div className="tabular-nums">{row.riskDisplay}</div>
+                      <ProportionBar
+                        ratio={row.riskValue === null ? null : row.riskValue / 100}
+                        label={`Risk ${row.riskDisplay} out of 100`}
+                      />
+                    </td>
                     <td className="px-2 py-2 tabular-nums text-text-primary">
                       {row.timeToCriticalDisplay}
                     </td>
@@ -67,6 +79,24 @@ export function ReliabilityWorkspace({ view }: { view: ReliabilityWorkspaceView 
                     </td>
                     <td className="px-2 py-2 text-text-secondary">{row.decisionStatusLabel}</td>
                     <td className="px-2 py-2 text-text-secondary">{row.nextActLabel}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex flex-col gap-0.5 whitespace-nowrap">
+                        <Link
+                          href={row.href}
+                          className="text-info-text underline-offset-2 hover:underline"
+                        >
+                          Asset 360
+                        </Link>
+                        {row.tag === "K-201" ? (
+                          <Link
+                            href="/v2/materials"
+                            className="text-info-text underline-offset-2 hover:underline"
+                          >
+                            Maintenance &amp; materials
+                          </Link>
+                        ) : null}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

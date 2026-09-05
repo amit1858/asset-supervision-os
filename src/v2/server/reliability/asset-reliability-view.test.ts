@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getK201ReliabilityView } from "./asset-reliability-view";
+import { formatUtcDate } from "@/v2/reliability/view-types";
 
 /**
  * September 6–7 Reliability experience — Asset 360 read-model contract.
@@ -189,5 +190,89 @@ describe("getK201ReliabilityView — evaluation-instant disclosure", () => {
         "2026-07-27T12:00:00.000Z",
       );
     }
+  });
+});
+
+describe("getK201ReliabilityView — signal sensors carry governed thresholds", () => {
+  const view = getK201ReliabilityView("reliability_manager");
+
+  it("exposes real reading series with seed warning/critical thresholds", () => {
+    expect(view.signal.sensors.length).toBeGreaterThan(0);
+    for (const s of view.signal.sensors) {
+      expect(s.points.length).toBeGreaterThan(1);
+      // Thresholds are read from the governed sensor definition, never invented.
+      expect(s.warningThreshold === null || Number.isFinite(s.warningThreshold)).toBe(true);
+      expect(s.criticalThreshold === null || Number.isFinite(s.criticalThreshold)).toBe(true);
+    }
+  });
+
+  it("carries the ISO 10816-3 vibration thresholds (warn 7.1 / crit 11.2 mm/s)", () => {
+    const vib = view.signal.sensors.find((s) => s.unit === "mm/s");
+    expect(vib, "a vibration sensor in mm/s").toBeTruthy();
+    expect(vib!.warningThreshold).toBe(7.1);
+    expect(vib!.criticalThreshold).toBe(11.2);
+    expect(vib!.latestValue === null || Number.isFinite(vib!.latestValue)).toBe(true);
+  });
+});
+
+describe("getK201ReliabilityView — operational horizon uses governed inputs", () => {
+  const view = getK201ReliabilityView("reliability_manager");
+
+  it("plots the failure/lead/turnaround/slack markers from governed records", () => {
+    const byKey = new Map(view.horizon.markers.map((m) => [m.key, m]));
+    expect(view.horizon.available).toBe(true);
+    // Failure marker is the governed TTC (≈17.93 days), never re-derived.
+    expect(byKey.get("failure")!.days).toBe(17.929375879868676);
+    expect(byKey.get("failure")!.display).toBe("≈17.93 days");
+    expect(byKey.get("lead")!.days).toBe(35);
+    expect(byKey.get("turnaround")!.days).toBe(88);
+    expect(byKey.get("slack")!.days).toBe(53);
+  });
+
+  it("states plainly that a lead-time fit is not a safe-to-wait signal", () => {
+    expect(view.horizon.comparisonMessage.toLowerCase()).toContain("not");
+    expect(view.horizon.comparisonMessage.toLowerCase()).toContain("safe to wait");
+  });
+
+  it("anchors absolute calendar dates on the governed assessment instant, disclosing derivation", () => {
+    const byKey = new Map(view.horizon.markers.map((m) => [m.key, m]));
+    // Predicted failure — anchor + governed TTC offset; a presentation of a
+    // governed record, honestly labelled as derived (no envelope stores it).
+    const failure = byKey.get("failure")!;
+    expect(failure.absoluteDateKind).toBe("presentation-derived");
+    expect(formatUtcDate(failure.absoluteDate)).toBe("14 August 2026");
+    // Longest spare lead — the spare-available date is a real governed turnaround
+    // record date, so it is disclosed as governed, not derived.
+    const lead = byKey.get("lead")!;
+    expect(lead.absoluteDateKind).toBe("governed");
+    expect(lead.absoluteDate).toBe("2026-08-31T00:00:00.000Z");
+    expect(formatUtcDate(lead.absoluteDate)).toBe("31 August 2026");
+    // Turnaround window opens — anchor + governed offset, derived.
+    const turn = byKey.get("turnaround")!;
+    expect(turn.absoluteDateKind).toBe("presentation-derived");
+    expect(formatUtcDate(turn.absoluteDate)).toBe("23 October 2026");
+    // Slack is a duration between two horizons, not a point in time.
+    const slack = byKey.get("slack")!;
+    expect(slack.absoluteDate).toBeNull();
+    expect(slack.absoluteDateKind).toBeNull();
+  });
+
+  it("re-derives absolute dates from records only, so the view stays deterministic", () => {
+    const a = getK201ReliabilityView("reliability_manager");
+    const b = getK201ReliabilityView("reliability_manager");
+    expect(JSON.stringify(a.horizon)).toBe(JSON.stringify(b.horizon));
+  });
+});
+
+describe("getK201ReliabilityView — decision exposure terminology", () => {
+  const view = getK201ReliabilityView("reliability_manager");
+
+  it("labels the governed $1,620,156 figure as decision exposure, never value at stake", () => {
+    // The authority banner already cites decision exposure; the assessment and
+    // lineage surfaces must match — no 'Value at stake' label survives.
+    const json = JSON.stringify(view);
+    expect(json).not.toContain("Value at stake (exposure)");
+    expect(json).not.toContain("Value at stake");
+    expect(json.includes("Decision exposure")).toBe(true);
   });
 });

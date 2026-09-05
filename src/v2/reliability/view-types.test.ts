@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { formatUtcInstant, UNAVAILABLE_DISPLAY } from "./view-types";
+import { formatUtcInstant, formatUtcDate, UNAVAILABLE_DISPLAY } from "./view-types";
 
 /**
  * September 6–7 Reliability experience — timestamp disclosure.
@@ -29,6 +29,27 @@ describe("formatUtcInstant", () => {
   it("renders unavailable for a null or malformed instant, never a fabricated time", () => {
     expect(formatUtcInstant(null)).toBe(UNAVAILABLE_DISPLAY);
     expect(formatUtcInstant("not-an-instant")).toBe(UNAVAILABLE_DISPLAY);
+  });
+});
+
+describe("formatUtcDate", () => {
+  it("renders a governed ISO instant as a deterministic UTC calendar date, no clock", () => {
+    expect(formatUtcDate("2026-08-14T04:18:18.076Z")).toBe("14 August 2026");
+    expect(formatUtcDate("2026-08-31T00:00:00.000Z")).toBe("31 August 2026");
+    expect(formatUtcDate("2026-10-23T06:00:00.000Z")).toBe("23 October 2026");
+  });
+
+  it("is a pure function of its input and never leaks a time-of-day", () => {
+    // Two instants on the same UTC day render the same date — it is date-only.
+    expect(formatUtcDate("2026-08-31T00:00:00.000Z")).toBe(
+      formatUtcDate("2026-08-31T23:59:00.000Z"),
+    );
+    expect(formatUtcDate("2026-08-31T00:00:00.000Z")).not.toMatch(/\d{2}:\d{2}/);
+  });
+
+  it("renders unavailable for a null or malformed instant, never a fabricated date", () => {
+    expect(formatUtcDate(null)).toBe(UNAVAILABLE_DISPLAY);
+    expect(formatUtcDate("not-a-date")).toBe(UNAVAILABLE_DISPLAY);
   });
 });
 

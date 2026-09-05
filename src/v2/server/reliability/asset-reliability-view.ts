@@ -31,6 +31,7 @@ import {
   formatPercent,
   formatScore,
   formatUsd,
+  formatWholeDays,
   freshnessLabel,
   trustLabel,
   UNAVAILABLE_DISPLAY,
@@ -39,6 +40,7 @@ import {
   type AuthorityDecisionView,
   type GovernedMetricView,
   type LifecycleProjectionEntryView,
+  type OperationalHorizonView,
   type WorkReadinessView,
   type TurnaroundFitView,
   type EvidenceLineageRowView,
@@ -441,6 +443,101 @@ function lineageRow(
   };
 }
 
+/**
+ * Governed operational-horizon comparison for K-201: the predicted failure
+ * horizon (time-to-critical) against the longest spare lead time, the days
+ * until the turnaround window, and the lead-time slack. Every figure is read
+ * verbatim from a governed calculation envelope; this is a labelled comparison
+ * of governed records, never a new calculation.
+ */
+function buildHorizon(
+  ttc: ValueEnvelope<number> | undefined,
+  turnaround: TurnaroundFitView,
+): OperationalHorizonView {
+  const maxLead = turnaround.metrics.find((m) => m.key === "ta-maxlead");
+  const untilTa = turnaround.metrics.find((m) => m.key === "ta-until");
+  const slack = turnaround.metrics.find((m) => m.key === "ta-slack");
+  const ttcValue = ttc && isAvailable(ttc) ? ttc.value : null;
+
+  // Absolute calendar dates are anchored to the governed assessment instant plus
+  // the governed day offset each record already holds. No governed envelope
+  // stores these dates — they are a presentation of governed records only, and no
+  // clock is read (the anchor is an injected governed `asOf`).
+  const anchorMs = new Date(ASSESSMENT_AS_OF).getTime();
+  const dateFromDays = (days: number | null): string | null =>
+    days === null || !Number.isFinite(days)
+      ? null
+      : new Date(anchorMs + days * 86_400_000).toISOString();
+  // The governed spare-available date (a real turnaround record date), if resolved.
+  const governedSpareDate =
+    turnaround.availableDate !== null
+      ? new Date(`${turnaround.availableDate}T00:00:00.000Z`).toISOString()
+      : null;
+
+  const markers = [
+    {
+      key: "failure",
+      label: "Predicted failure horizon",
+      days: ttcValue,
+      display: formatDays(ttcValue),
+      sourceNote: "Assessment · time-to-critical",
+      absoluteDate: dateFromDays(ttcValue),
+      absoluteDateKind: (ttcValue === null ? null : "presentation-derived") as
+        | "governed"
+        | "presentation-derived"
+        | null,
+    },
+    {
+      key: "lead",
+      label: "Longest spare lead time",
+      days: maxLead?.rawValue ?? null,
+      display: formatWholeDays(maxLead?.rawValue ?? null),
+      sourceNote: "Turnaround fit · max spare lead time",
+      // The spare-available date is a governed turnaround record date.
+      absoluteDate: governedSpareDate ?? dateFromDays(maxLead?.rawValue ?? null),
+      absoluteDateKind: (governedSpareDate !== null
+        ? "governed"
+        : maxLead?.rawValue == null
+          ? null
+          : "presentation-derived") as "governed" | "presentation-derived" | null,
+    },
+    {
+      key: "turnaround",
+      label: "Turnaround window opens",
+      days: untilTa?.rawValue ?? null,
+      display: formatWholeDays(untilTa?.rawValue ?? null),
+      sourceNote: "Turnaround fit · days until turnaround",
+      absoluteDate: dateFromDays(untilTa?.rawValue ?? null),
+      absoluteDateKind: (untilTa?.rawValue == null ? null : "presentation-derived") as
+        | "governed"
+        | "presentation-derived"
+        | null,
+    },
+    {
+      key: "slack",
+      label: "Lead-time slack to window",
+      days: slack?.rawValue ?? null,
+      display: formatWholeDays(slack?.rawValue ?? null),
+      sourceNote: "Turnaround fit · slack",
+      // Slack is a duration between two horizons, not a point in time.
+      absoluteDate: null,
+      absoluteDateKind: null as "governed" | "presentation-derived" | null,
+    },
+  ];
+
+  const available = markers.slice(0, 3).every((m) => m.days !== null);
+
+  return {
+    available,
+    markers,
+    comparisonMessage:
+      "The spare lead time fits the turnaround window, but the predicted failure " +
+      "horizon occurs earlier than both. This is a comparison of governed records, " +
+      "not a new calculation — a fit against the turnaround must not be read as safe to wait.",
+    anchoredAt: ASSESSMENT_AS_OF,
+  };
+}
+
 /** Build the complete K-201 Asset 360 + Assessment & Decision view. */
 export function getK201ReliabilityView(viewerId: PersonaId): AssetReliabilityView {
   const model: Asset360Model | null = getRepository().getAsset360(TAG);
@@ -462,7 +559,7 @@ export function getK201ReliabilityView(viewerId: PersonaId): AssetReliabilityVie
     toMetric("health", "Health score", assessment.get("healthScore"), "score"),
     toMetric("risk", "Risk score", assessment.get("riskScore"), "score"),
     toMetric("ttc", "Time to critical", assessment.get("timeToCriticalDays"), "days"),
-    toMetric("exposure", "Value at stake (exposure)", exposureEnvelope, "usd"),
+    toMetric("exposure", "Decision exposure", exposureEnvelope, "usd"),
   ];
 
   const oee = toMetric("oee", "Overall equipment effectiveness", oeeMap.get("oee"), "percent");
@@ -516,6 +613,10 @@ export function getK201ReliabilityView(viewerId: PersonaId): AssetReliabilityVie
       label: s.definition.label,
       unit: s.definition.unit,
       latestDisplay: latest ? `${latest.value} ${s.definition.unit}` : UNAVAILABLE_DISPLAY,
+      warningThreshold: s.definition.warningThreshold,
+      criticalThreshold: s.definition.criticalThreshold,
+      latestValue: latest ? latest.value : null,
+      latestAt: latest ? latest.timestamp : null,
       points: readings.map((r) => ({ t: r.timestamp, v: r.value })),
     };
   });
@@ -531,7 +632,7 @@ export function getK201ReliabilityView(viewerId: PersonaId): AssetReliabilityVie
   const turnaround = buildTurnaround();
 
   const lineage = [
-    lineageRow("exposure", "Value at stake", exposureEnvelope),
+    lineageRow("exposure", "Decision exposure", exposureEnvelope),
     lineageRow("ttc", "Time to critical", assessment.get("timeToCriticalDays")),
     lineageRow("health", "Health score", assessment.get("healthScore")),
     lineageRow("risk", "Risk score", assessment.get("riskScore")),
@@ -580,6 +681,7 @@ export function getK201ReliabilityView(viewerId: PersonaId): AssetReliabilityVie
       nextGovernedAction: "Reliability Manager review — approve, decline or return.",
     },
     evidenceLineage: lineage,
+    horizon: buildHorizon(assessment.get("timeToCriticalDays"), turnaround.view),
   };
 }
 

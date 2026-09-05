@@ -18,11 +18,78 @@ import type { RecommendedDisposition } from "@/domain/enums";
  * evidence, secondary items, and governance notes live in an expandable drawer;
  * provenance is a small indicator beside claims, not a repeated chip.
  */
-export function MyBrief({ brief }: { brief: PersonaBrief }) {
+export function MyBrief({
+  brief,
+  variant = "default",
+}: {
+  brief: PersonaBrief;
+  variant?: "default" | "v2";
+}) {
+  const v2 = variant === "v2";
   const primaryDecision = brief.decisions[0] ?? null;
   const primaryAction = [...brief.actions].sort((a, b) => a.priority - b.priority)[0] ?? null;
   const primaryBlocker = brief.blockers[0] ?? null;
   const hasSide = primaryBlocker !== null;
+
+  const body = (
+    <>
+      {/* Max three concise change bullets */}
+      {brief.summary.points.length > 0 ? (
+        <ul className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-5">
+          {brief.summary.points.slice(0, 3).map((p, i) => (
+            <li key={i} className="flex items-start gap-1.5 text-xs text-text-secondary">
+              <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-text-muted" />
+              {p}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {/* Compact metric strip */}
+      {brief.riskValue.length > 0 ? (
+        <div className="grid grid-cols-2 divide-border overflow-hidden rounded border border-border sm:grid-cols-3 sm:divide-x">
+          {brief.riskValue.slice(0, 3).map((rv) => (
+            <div key={rv.label} className="border-t border-border px-3 py-1.5 first:border-t-0 sm:border-t-0">
+              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-muted">
+                <ProvDot provenance={rv.provenance} />
+                {rv.label}
+              </div>
+              <div className="text-sm font-semibold tabular-nums text-text-primary">{rv.value}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Primary decision/action + key blocker (content-aware 8/4) */}
+      <div className={cn("grid grid-cols-1 gap-3", hasSide && "lg:grid-cols-3")}>
+        <div className={cn(hasSide && "lg:col-span-2")}>
+          {primaryDecision ? (
+            <PrimaryDecision decision={primaryDecision} v2={v2} />
+          ) : primaryAction ? (
+            <PrimaryAction action={primaryAction} />
+          ) : (
+            <div className="rounded border border-border bg-canvas px-3 py-2 text-sm text-text-muted">
+              No action required for this persona right now.
+            </div>
+          )}
+        </div>
+        {primaryBlocker ? (
+          <div className="rounded border border-border bg-canvas px-3 py-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-attention-text">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-attention" />
+              Key blocker
+            </div>
+            <div className="mt-0.5 text-sm font-medium text-text-primary">{primaryBlocker.summary}</div>
+            <div className="text-xs text-text-secondary">Depends on: {primaryBlocker.dependency}</div>
+            <EvidenceDots evidence={primaryBlocker.evidence} />
+          </div>
+        ) : null}
+      </div>
+
+      {/* Detail & evidence drawer (keeps the first viewport compact) */}
+      {detailDrawer(brief)}
+    </>
+  );
 
   return (
     <section aria-label="My Brief" className="rounded-md border border-border bg-surface">
@@ -44,61 +111,74 @@ export function MyBrief({ brief }: { brief: PersonaBrief }) {
         {/* One-sentence executive summary */}
         <p className="text-sm font-medium text-text-primary">{brief.summary.headline}</p>
 
-        {/* Max three concise change bullets */}
-        {brief.summary.points.length > 0 ? (
-          <ul className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-5">
-            {brief.summary.points.slice(0, 3).map((p, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-xs text-text-secondary">
-                <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-text-muted" />
-                {p}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        {v2 ? (
+          <>
+            {/* Visual-first command center: the operational workspace stays visible;
+                the full brief collapses behind an at-a-glance strip. */}
+            <BriefGlance brief={brief} />
+            <details className="group rounded border border-border bg-canvas">
+              <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-xs font-medium text-text-secondary marker:content-none">
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon name="chevron-down" size={13} className="transition-transform group-open:rotate-180" />
+                  Full brief
+                </span>
+                <span className="text-text-muted">
+                  {brief.changes.length} changes · {brief.actions.length + brief.decisions.length} items
+                </span>
+              </summary>
+              <div className="space-y-3 border-t border-border p-3">{body}</div>
+            </details>
+          </>
+        ) : (
+          body
+        )}
+      </div>
+    </section>
+  );
+}
 
-        {/* Compact metric strip */}
-        {brief.riskValue.length > 0 ? (
-          <div className="grid grid-cols-2 divide-border overflow-hidden rounded border border-border sm:grid-cols-3 sm:divide-x">
-            {brief.riskValue.slice(0, 3).map((rv) => (
-              <div key={rv.label} className="border-t border-border px-3 py-1.5 first:border-t-0 sm:border-t-0">
-                <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-muted">
-                  <ProvDot provenance={rv.provenance} />
-                  {rv.label}
-                </div>
-                <div className="text-sm font-semibold tabular-nums text-text-primary">{rv.value}</div>
-              </div>
-            ))}
-          </div>
-        ) : null}
+/** The at-a-glance strip for the V2 command center: the governed decision
+ * exposure, projected horizon, key blocker and human-decision status — enough to
+ * orient without expanding the full brief. */
+function BriefGlance({ brief }: { brief: PersonaBrief }) {
+  const exposure = brief.riskValue.find((r) => /decision exposure/i.test(r.label));
+  const horizon = brief.riskValue.find((r) => /time-to-critical/i.test(r.label));
+  const blocker = brief.blockers[0] ?? null;
+  const pendingDecision = brief.decisions.length > 0;
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded border border-border bg-canvas px-3 py-2 text-xs">
+      {exposure ? <GlanceStat label={exposure.label} value={exposure.value} /> : null}
+      {horizon ? <GlanceStat label={horizon.label} value={horizon.value} /> : null}
+      {blocker ? (
+        <span className="inline-flex items-center gap-1.5 text-attention-text">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-attention" />
+          Blocker: {blocker.summary}
+        </span>
+      ) : null}
+      {pendingDecision ? (
+        <span className="ml-auto inline-flex items-center gap-1.5 font-medium text-text-secondary">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand" />
+          Awaiting a governed human decision
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
-        {/* Primary decision/action + key blocker (content-aware 8/4) */}
-        <div className={cn("grid grid-cols-1 gap-3", hasSide && "lg:grid-cols-3")}>
-          <div className={cn(hasSide && "lg:col-span-2")}>
-            {primaryDecision ? (
-              <PrimaryDecision decision={primaryDecision} />
-            ) : primaryAction ? (
-              <PrimaryAction action={primaryAction} />
-            ) : (
-              <div className="rounded border border-border bg-canvas px-3 py-2 text-sm text-text-muted">
-                No action required for this persona right now.
-              </div>
-            )}
-          </div>
-          {primaryBlocker ? (
-            <div className="rounded border border-border bg-canvas px-3 py-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-attention-text">
-                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-attention" />
-                Key blocker
-              </div>
-              <div className="mt-0.5 text-sm font-medium text-text-primary">{primaryBlocker.summary}</div>
-              <div className="text-xs text-text-secondary">Depends on: {primaryBlocker.dependency}</div>
-              <EvidenceDots evidence={primaryBlocker.evidence} />
-            </div>
-          ) : null}
-        </div>
+function GlanceStat({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="text-[10px] uppercase tracking-wide text-text-muted">{label}</span>
+      <span className="text-sm font-semibold tabular-nums text-text-primary">{value}</span>
+    </span>
+  );
+}
 
-        {/* Detail & evidence drawer (keeps the first viewport compact) */}
-        <details className="group rounded border border-border bg-canvas">
+function detailDrawer(brief: PersonaBrief) {
+  return (
+    <>
+      {/* Detail & evidence drawer (keeps the first viewport compact) */}
+      <details className="group rounded border border-border bg-canvas">
           <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-xs font-medium text-text-secondary marker:content-none">
             <span className="inline-flex items-center gap-1.5">
               <Icon name="chevron-down" size={13} className="transition-transform group-open:rotate-180" />
@@ -170,17 +250,16 @@ export function MyBrief({ brief }: { brief: PersonaBrief }) {
             </DrawerBlock>
           </div>
         </details>
-      </div>
-    </section>
+      </>
   );
 }
 
-function PrimaryDecision({ decision }: { decision: BriefDecision }) {
+function PrimaryDecision({ decision, v2 }: { decision: BriefDecision; v2?: boolean }) {
   return (
     <div className="rounded border border-border bg-brand-subtle px-3 py-2.5">
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-brand-text">
-          <Icon name="approvals" size={13} /> Decision awaiting you
+          <Icon name="approvals" size={13} /> {v2 ? "Governed decision" : "Decision awaiting you"}
         </span>
         {decision.disposition ? <DispositionBadge disposition={decision.disposition as RecommendedDisposition} size="sm" /> : null}
       </div>
@@ -188,12 +267,14 @@ function PrimaryDecision({ decision }: { decision: BriefDecision }) {
       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-text-muted">
         <span>Owner: {decision.owner.name}</span>
         {decision.dueBy ? <span>Due {fmtDate(decision.dueBy)}</span> : null}
-        {decision.valueAtStakeUsd != null ? <span>{fmtCurrency(decision.valueAtStakeUsd, "USD", true)} at stake</span> : null}
+        {decision.valueAtStakeUsd != null ? (
+          <span>{fmtCurrency(decision.valueAtStakeUsd, "USD", true)} {v2 ? "decision exposure" : "at stake"}</span>
+        ) : null}
         <EvidenceDots evidence={decision.evidence} inline />
       </div>
       {decision.href ? (
         <Link href={decision.href} className="mt-1.5 inline-block text-xs font-semibold text-brand-text hover:underline">
-          Review &amp; approve →
+          {v2 ? "Review governed case →" : "Review \u0026 approve →"}
         </Link>
       ) : null}
     </div>

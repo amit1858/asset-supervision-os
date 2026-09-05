@@ -125,7 +125,49 @@ export interface SignalSensorView {
   readonly label: string;
   readonly unit: string;
   readonly latestDisplay: string;
+  /** Governed warning threshold (seed sensor definition), or `null`. */
+  readonly warningThreshold: number | null;
+  /** Governed critical threshold (seed sensor definition), or `null`. */
+  readonly criticalThreshold: number | null;
+  /** Latest raw reading value, or `null` — never defaulted to zero. */
+  readonly latestValue: number | null;
+  /** Instant of the latest reading, or `null`. */
+  readonly latestAt: string | null;
   readonly points: readonly { readonly t: string; readonly v: number }[];
+}
+
+/**
+ * One horizon on the operational-horizon comparison. Each is derived from a
+ * governed record; the comparison itself is a labelled comparison of governed
+ * records, NOT a new calculation.
+ */
+export interface HorizonMarkerView {
+  readonly key: string;
+  readonly label: string;
+  /** Days from the assessment instant, exactly as the governed record holds it. */
+  readonly days: number | null;
+  readonly display: string;
+  readonly sourceNote: string;
+  /**
+   * The absolute UTC instant this horizon falls on, or `null`. Presentation-only:
+   * it is anchored to the governed assessment `asOf` plus the governed day offset;
+   * no governed envelope stores it. Components format it with `formatUtcDate`.
+   */
+  readonly absoluteDate: string | null;
+  /**
+   * `"governed"` when the absolute date equals a governed record date (e.g. the
+   * turnaround spare-available date); `"presentation-derived"` when it is the
+   * anchor plus a governed day offset; `null` when no absolute date applies.
+   */
+  readonly absoluteDateKind: "governed" | "presentation-derived" | null;
+}
+
+export interface OperationalHorizonView {
+  readonly available: boolean;
+  readonly markers: readonly HorizonMarkerView[];
+  readonly comparisonMessage: string;
+  /** The instant the comparison is anchored to (the assessment `asOf`). */
+  readonly anchoredAt: string;
 }
 
 export interface SignalNarrativeView {
@@ -207,6 +249,8 @@ export interface AssetReliabilityView {
   readonly lifecycleProjection: readonly LifecycleProjectionEntryView[];
   readonly decisionAudit: DecisionAuditView;
   readonly evidenceLineage: readonly EvidenceLineageRowView[];
+  /** Governed operational-horizon comparison (failure vs lead time vs turnaround). */
+  readonly horizon: OperationalHorizonView;
 }
 
 /** A single row in the reliability workspace priority queue. */
@@ -215,7 +259,11 @@ export interface ReliabilityPriorityRowView {
   readonly assetName: string;
   readonly href: string;
   readonly healthDisplay: string;
+  /** Raw governed health score (0–100), or `null` — drives the proportion visual. */
+  readonly healthValue: number | null;
   readonly riskDisplay: string;
+  /** Raw governed risk score (0–100), or `null` — drives the proportion visual. */
+  readonly riskValue: number | null;
   readonly timeToCriticalDisplay: string;
   readonly exposureDisplay: string;
   readonly decisionStatusLabel: string;
@@ -303,6 +351,27 @@ export function formatUtcInstant(iso: string | null): string {
   const parts = UTC_INSTANT.formatToParts(date);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("day")} ${get("month")} ${get("year")}, ${get("hour")}:${get("minute")} UTC`;
+}
+
+const UTC_DATE = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+/**
+ * Deterministic UTC calendar-date label, e.g. "14 August 2026" — the date-only
+ * companion to `formatUtcInstant`. Fixed to the UTC zone with no clock read, so
+ * it renders identically on every machine.
+ */
+export function formatUtcDate(iso: string | null): string {
+  if (iso === null) return UNAVAILABLE_DISPLAY;
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return UNAVAILABLE_DISPLAY;
+  const parts = UTC_DATE.formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("day")} ${get("month")} ${get("year")}`;
 }
 
 const FRESHNESS_LABEL: Record<FreshnessState, string> = {

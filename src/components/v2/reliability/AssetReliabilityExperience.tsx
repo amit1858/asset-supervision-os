@@ -9,7 +9,14 @@ import {
   type SignalNarrativeView,
   type WorkReadinessView,
 } from "@/v2/reliability/view-types";
-import { GovernedMetricCell, MetricGrid, SectionCard, TrustFreshnessPill } from "./primitives";
+import { GovernedMetricCell, SectionCard, TrustFreshnessPill } from "./primitives";
+import {
+  ConditionRiskStrip,
+  Disclosure,
+  LifecycleStepper,
+  OperationalHorizonTimeline,
+  SensorTrendChart,
+} from "./visuals";
 
 /**
  * September 6–7 Reliability experience — Asset 360 + Assessment & Decision.
@@ -25,10 +32,12 @@ export function AssetReliabilityExperience({ view }: { view: AssetReliabilityVie
     <div className="space-y-4">
       <ExperienceHeader view={view} />
 
+      <ConditionRiskStrip metrics={view.assessmentMetrics} oee={view.oee} />
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
-          <AssessmentSection view={view} />
           <SignalSection signal={view.signal} />
+          <HorizonSection view={view} />
           <RecommendationSection view={view} />
         </div>
         <div className="space-y-4">
@@ -42,6 +51,7 @@ export function AssetReliabilityExperience({ view }: { view: AssetReliabilityVie
         <AuditSection view={view} />
       </div>
 
+      <AssessmentDetailDisclosure view={view} />
       <LineageSection rows={view.evidenceLineage} />
     </div>
   );
@@ -68,15 +78,12 @@ function ExperienceHeader({ view }: { view: AssetReliabilityView }) {
   );
 }
 
-function AssessmentSection({ view }: { view: AssetReliabilityView }) {
+function AssessmentDetailDisclosure({ view }: { view: AssetReliabilityView }) {
   return (
-    <SectionCard
-      eyebrow="Governed assessment"
-      title="Condition, risk and exposure"
-      aside="Deterministic calculations"
+    <Disclosure
+      summary="Assessment detail · OEE breakdown, evaluation context and formula identity"
     >
-      <MetricGrid metrics={view.assessmentMetrics} />
-      <div className="mt-3 rounded-md border border-dashed border-border bg-elevated px-3 py-2">
+      <div className="rounded-md border border-dashed border-border bg-elevated px-3 py-2">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-xs font-medium text-text-secondary">
             {view.assessmentContext.label}
@@ -106,6 +113,18 @@ function AssessmentSection({ view }: { view: AssetReliabilityView }) {
           ))}
         </div>
       </div>
+    </Disclosure>
+  );
+}
+
+function HorizonSection({ view }: { view: AssetReliabilityView }) {
+  return (
+    <SectionCard
+      eyebrow="Operational horizon"
+      title="Failure horizon vs lead time vs turnaround"
+      aside={view.horizon.available ? "Governed horizons" : "Unavailable"}
+    >
+      <OperationalHorizonTimeline horizon={view.horizon} />
     </SectionCard>
   );
 }
@@ -116,22 +135,9 @@ function SignalSection({ signal }: { signal: SignalNarrativeView }) {
       <p className="text-sm text-text-secondary">{signal.detail}</p>
 
       {signal.sensors.length > 0 ? (
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {signal.sensors.map((s) => (
-            <div
-              key={s.key}
-              className="flex items-center justify-between rounded-md border border-border bg-elevated px-3 py-2"
-            >
-              <div>
-                <div className="text-xs font-medium text-text-primary">{s.label}</div>
-                <div className="text-[11px] text-text-muted">
-                  {s.points.length} readings · {s.unit}
-                </div>
-              </div>
-              <div className="text-sm font-semibold tabular-nums text-text-primary">
-                {s.latestDisplay}
-              </div>
-            </div>
+            <SensorTrendChart key={s.key} sensor={s} />
           ))}
         </div>
       ) : null}
@@ -366,22 +372,7 @@ function LifecycleSection({
       title="Signal to proposed decision"
       aside="Derived from existing seeded evidence"
     >
-      <ol className="space-y-2 border-l border-border pl-3">
-        {entries.map((e) => (
-          <li key={e.eventId} className="relative">
-            <span
-              className="absolute -left-[15px] top-1 h-1.5 w-1.5 rounded-full bg-info"
-              aria-hidden
-            />
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-xs font-medium text-text-primary">{e.typeLabel}</span>
-              <span className="text-[11px] text-text-muted tabular-nums">{e.asOf}</span>
-            </div>
-            <div className="text-[11px] text-text-muted">{e.summary}</div>
-            <div className="text-[11px] text-text-secondary">→ {e.resultingPhaseLabel}</div>
-          </li>
-        ))}
-      </ol>
+      <LifecycleStepper entries={entries} pendingLabel="Reliability Manager decision" />
     </SectionCard>
   );
 }
@@ -417,11 +408,7 @@ function AuditSection({ view }: { view: AssetReliabilityView }) {
 
 function LineageSection({ rows }: { rows: readonly EvidenceLineageRowView[] }) {
   return (
-    <SectionCard
-      eyebrow="Evidence lineage"
-      title="Source records & calculation identity"
-      aside="Provenance and freshness for every governed value"
-    >
+    <Disclosure summary="Evidence lineage · source records & calculation identity for every governed value">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="text-text-muted">
@@ -450,7 +437,7 @@ function LineageSection({ rows }: { rows: readonly EvidenceLineageRowView[] }) {
           </tbody>
         </table>
       </div>
-    </SectionCard>
+    </Disclosure>
   );
 }
 

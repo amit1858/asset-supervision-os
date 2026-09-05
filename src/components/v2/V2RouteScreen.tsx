@@ -1,5 +1,6 @@
 import { readOperationalContext } from "@/context/server";
 import { buildPersonaBrief } from "@/brief/service";
+import { presentBriefForV2 } from "@/v2/server/brief/present-brief-v2";
 import { getPersona } from "@/personas/registry";
 import { EnterprisePageHeader } from "@/components/ui/enterprise";
 import { MyBrief } from "@/components/brief/MyBrief";
@@ -9,6 +10,8 @@ import { V2Placeholder } from "./V2Placeholder";
 import { V2Restricted } from "./V2Restricted";
 import { ReliabilityWorkspace } from "./reliability/ReliabilityWorkspace";
 import { getReliabilityWorkspaceView } from "@/v2/server/reliability/reliability-workspace-view";
+import { MaintenanceMaterialsWorkspace } from "./materials/MaintenanceMaterialsWorkspace";
+import { getMaintenanceMaterialsView } from "@/v2/server/materials/maintenance-materials-view";
 import { getV2Route } from "@/v2/routes";
 import { canAccessV2Route } from "@/v2/access";
 import { v2LandingRoute } from "@/v2/nav";
@@ -41,7 +44,7 @@ export function V2RouteScreen({ routeKey }: { routeKey: string }) {
   const owner = getPersona(route.ownerPersona);
   const isPersonaHome = route.kind === "persona_workspace";
   const brief = isPersonaHome
-    ? buildPersonaBrief(route.ownerPersona, { assetTag: ctx.assetTag })
+    ? presentBriefForV2(buildPersonaBrief(route.ownerPersona, { assetTag: ctx.assetTag }))
     : null;
 
   return (
@@ -52,10 +55,12 @@ export function V2RouteScreen({ routeKey }: { routeKey: string }) {
         description={route.purpose}
       />
       <div className="mx-auto w-full max-w-content space-y-6 px-6 py-6">
-        {brief ? <MyBrief brief={brief} /> : null}
+        {brief ? <MyBrief brief={brief} variant="v2" /> : null}
         <OperationalThread />
         {route.key === "reliability" ? (
           <ReliabilityWorkspace view={getReliabilityWorkspaceView(ctx.personaId)} />
+        ) : route.key === "materials" ? (
+          <MaintenanceMaterialsWorkspace view={getMaintenanceMaterialsView(ctx.personaId)} />
         ) : (
           <V2Placeholder route={route} />
         )}

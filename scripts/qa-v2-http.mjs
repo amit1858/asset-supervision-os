@@ -28,6 +28,12 @@ const CASES = [
   ["reliability_manager", "/v2/oee", "OEE &amp; Loss Intelligence", 200],
   ["plant_manager", "/v2/value-realisation", "Value Realisation", 200],
   ["reliability_engineer", "/v2/assets/K-201", "Operational thread", 200],
+  // Maintenance & Materials workspace content anchors (added Sept 8 slice)
+  ["materials_coordinator", "/v2/materials", "Maintenance &amp; materials", 200],
+  ["materials_coordinator", "/v2/materials", "Materials readiness vs inventory health", 200],
+  ["materials_coordinator", "/v2/materials", "Inventory position bridge", 200],
+  ["materials_coordinator", "/v2/materials", "Who owns the next decision", 200],
+  ["materials_coordinator", "/v2/materials", "WO-48231", 200],
   // access gating (renders restricted state, still 200)
   ["materials_coordinator", "/v2/oee", "not available for the current persona", 200],
   ["reliability_engineer", "/v2/agent-control", "not available for the current persona", 200],

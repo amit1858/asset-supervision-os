@@ -28,6 +28,16 @@ describe("getReliabilityWorkspaceView", () => {
     expect(row.freshnessLabel).toBe("Fresh");
   });
 
+  it("exposes numeric health/risk values so the queue can render proportion visuals without recomputing", () => {
+    const row = view.priorities[0]!;
+    // The raw governed values back the workspace proportion bars; the display
+    // strings are derived from the same envelope, so they can never disagree.
+    expect(row.healthValue).toBe(52);
+    expect(row.riskValue).toBe(68);
+    expect(String(row.healthValue)).toBe(row.healthDisplay);
+    expect(String(row.riskValue)).toBe(row.riskDisplay);
+  });
+
   it("names the next governed action and decision status", () => {
     const row = view.priorities[0]!;
     expect(row.decisionStatusLabel).toContain("Proposed");
@@ -82,5 +92,13 @@ describe("ReliabilityWorkspace — evaluation-timestamp presentation", () => {
     // No literal UTC "Z" ISO timestamp and no hardcoded formatted string.
     expect(source).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
     expect(source).not.toContain("06:00 UTC");
+  });
+
+  it("renders health and risk as proportion visuals fed by the governed raw values", () => {
+    // The queue must show health/risk visually (a proportion bar), driven by the
+    // view-model's raw values — never a locally recomputed proportion.
+    expect(source).toContain("ProportionBar");
+    expect(source).toContain("row.healthValue");
+    expect(source).toContain("row.riskValue");
   });
 });
