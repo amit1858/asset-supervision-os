@@ -2,6 +2,8 @@ import { readOperationalContext } from "@/context/server";
 import { buildPersonaBrief } from "@/brief/service";
 import { presentBriefForV2 } from "@/v2/server/brief/present-brief-v2";
 import { getPersona } from "@/personas/registry";
+import type { PersonaId } from "@/personas/types";
+import type { ReactNode } from "react";
 import { EnterprisePageHeader } from "@/components/ui/enterprise";
 import { MyBrief } from "@/components/brief/MyBrief";
 import { V2Shell } from "./V2Shell";
@@ -12,7 +14,13 @@ import { ReliabilityWorkspace } from "./reliability/ReliabilityWorkspace";
 import { getReliabilityWorkspaceView } from "@/v2/server/reliability/reliability-workspace-view";
 import { MaintenanceMaterialsWorkspace } from "./materials/MaintenanceMaterialsWorkspace";
 import { getMaintenanceMaterialsView } from "@/v2/server/materials/maintenance-materials-view";
-import { getV2Route } from "@/v2/routes";
+import { TurnaroundControlWorkspace } from "./turnaround/TurnaroundControlWorkspace";
+import { getTurnaroundControlView } from "@/v2/server/turnaround/turnaround-control-view";
+import { OeeLossWorkspace } from "./oee/OeeLossWorkspace";
+import { getOeeLossView } from "@/v2/server/oee/oee-loss-view";
+import { ValueRealisationWorkspace } from "./value/ValueRealisationWorkspace";
+import { getValueRealisationView } from "@/v2/server/value/value-realisation-view";
+import { getV2Route, type V2Route } from "@/v2/routes";
 import { canAccessV2Route } from "@/v2/access";
 import { v2LandingRoute } from "@/v2/nav";
 
@@ -57,14 +65,31 @@ export function V2RouteScreen({ routeKey }: { routeKey: string }) {
       <div className="mx-auto w-full max-w-content space-y-6 px-6 py-6">
         {brief ? <MyBrief brief={brief} variant="v2" /> : null}
         <OperationalThread />
-        {route.key === "reliability" ? (
-          <ReliabilityWorkspace view={getReliabilityWorkspaceView(ctx.personaId)} />
-        ) : route.key === "materials" ? (
-          <MaintenanceMaterialsWorkspace view={getMaintenanceMaterialsView(ctx.personaId)} />
-        ) : (
-          <V2Placeholder route={route} />
-        )}
+        {renderWorkspace(route, ctx.personaId)}
       </div>
     </V2Shell>
   );
+}
+
+/**
+ * Resolve the workspace body for a route. A readable map from route key to its
+ * server read model + presentational workspace — each branch composes an
+ * existing server read model and renders its pure component; unimplemented
+ * routes fall through to the honest placeholder.
+ */
+function renderWorkspace(route: V2Route, viewerId: PersonaId): ReactNode {
+  switch (route.key) {
+    case "reliability":
+      return <ReliabilityWorkspace view={getReliabilityWorkspaceView(viewerId)} />;
+    case "materials":
+      return <MaintenanceMaterialsWorkspace view={getMaintenanceMaterialsView(viewerId)} />;
+    case "turnaround":
+      return <TurnaroundControlWorkspace view={getTurnaroundControlView(viewerId)} />;
+    case "oee":
+      return <OeeLossWorkspace view={getOeeLossView(viewerId)} />;
+    case "value-realisation":
+      return <ValueRealisationWorkspace view={getValueRealisationView(viewerId)} />;
+    default:
+      return <V2Placeholder route={route} />;
+  }
 }

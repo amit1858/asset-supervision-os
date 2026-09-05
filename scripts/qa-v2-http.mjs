@@ -25,7 +25,7 @@ const CASES = [
   ["materials_coordinator", "/v2/materials", "Material Exceptions", 200],
   ["turnaround_manager", "/v2/turnaround", "Turnaround Control Tower", 200],
   ["ai_admin", "/v2/agent-control", "AI Control Tower", 200],
-  ["reliability_manager", "/v2/oee", "OEE &amp; Loss Intelligence", 200],
+  ["reliability_manager", "/v2/oee", "OEE &amp; loss intelligence", 200],
   ["plant_manager", "/v2/value-realisation", "Value Realisation", 200],
   ["reliability_engineer", "/v2/assets/K-201", "Operational thread", 200],
   // Maintenance & Materials workspace content anchors (added Sept 8 slice)
@@ -34,6 +34,20 @@ const CASES = [
   ["materials_coordinator", "/v2/materials", "Inventory position bridge", 200],
   ["materials_coordinator", "/v2/materials", "Who owns the next decision", 200],
   ["materials_coordinator", "/v2/materials", "WO-48231", 200],
+  // Turnaround Control workspace anchors (added Sept 9 slice)
+  ["turnaround_manager", "/v2/turnaround", "A fit is not a licence to wait", 200],
+  ["turnaround_manager", "/v2/turnaround", "Immediate work vs turnaround-held work", 200],
+  ["turnaround_manager", "/v2/turnaround", "wp-k201", 200],
+  ["turnaround_manager", "/v2/turnaround", "WO-48102", 200],
+  // OEE & Loss Intelligence workspace anchors (added Sept 9 slice)
+  ["reliability_manager", "/v2/oee", "Governed OEE", 200],
+  ["reliability_manager", "/v2/oee", "Where the lost production went", 200],
+  ["reliability_manager", "/v2/oee", "Line-level, not per-asset", 200],
+  // Value Realisation workspace anchors (added Sept 9 slice)
+  ["plant_manager", "/v2/value-realisation", "Four distinct value concepts", 200],
+  ["plant_manager", "/v2/value-realisation", "Not yet available", 200],
+  ["plant_manager", "/v2/value-realisation", "Projected value enabled", 200],
+  ["plant_manager", "/v2/value-realisation", "Sourced record", 200],
   // access gating (renders restricted state, still 200)
   ["materials_coordinator", "/v2/oee", "not available for the current persona", 200],
   ["reliability_engineer", "/v2/agent-control", "not available for the current persona", 200],
