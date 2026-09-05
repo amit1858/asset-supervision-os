@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import {
+  formatUtcDate,
   formatUtcInstant,
   type AssetReliabilityView,
   type AuthorityActorView,
@@ -152,7 +153,7 @@ function SignalSection({ signal }: { signal: SignalNarrativeView }) {
               />
               <div className="text-xs font-medium text-text-primary">{e.label}</div>
               <div className="text-[11px] text-text-muted">
-                <span className="tabular-nums">{e.at}</span> · {e.detail}
+                <span className="tabular-nums">{formatUtcInstant(e.at)}</span> · {e.detail}
               </div>
             </li>
           ))}
@@ -323,7 +324,7 @@ function ReadinessSection({ view }: { view: AssetReliabilityView }) {
               </div>
               {view.turnaround.availableDate ? (
                 <div className="mt-2 text-[11px] text-text-muted">
-                  Earliest available date · {view.turnaround.availableDate}
+                  Earliest available date · {formatUtcDate(view.turnaround.availableDate)}
                 </div>
               ) : null}
             </>
@@ -387,7 +388,7 @@ function AuditSection({ view }: { view: AssetReliabilityView }) {
             <li key={e.auditId} className="rounded-md border border-border bg-elevated px-3 py-2">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-xs font-medium text-text-primary">{e.action}</span>
-                <span className="text-[11px] text-text-muted tabular-nums">{e.at}</span>
+                <span className="text-[11px] text-text-muted tabular-nums">{formatUtcInstant(e.at)}</span>
               </div>
               <div className="text-[11px] text-text-muted">
                 {e.actorLabel} · {e.summary}
@@ -431,7 +432,7 @@ function LineageSection({ rows }: { rows: readonly EvidenceLineageRowView[] }) {
                 <td className="px-2 py-1.5 text-text-muted">
                   {r.evidenceIds.length > 0 ? r.evidenceIds.join(", ") : "—"}
                 </td>
-                <td className="px-2 py-1.5 tabular-nums text-text-muted">{r.asOf}</td>
+                <td className="px-2 py-1.5 tabular-nums text-text-muted">{formatUtcInstant(r.asOf)}</td>
               </tr>
             ))}
           </tbody>

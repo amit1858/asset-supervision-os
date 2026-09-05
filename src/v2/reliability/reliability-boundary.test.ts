@@ -140,6 +140,11 @@ describe("Reliability presentation components compute no governed value", () => 
 
   for (const file of filesUnder("components/v2/reliability")) {
     const rel = toRepositoryPath(path.relative(SRC, file));
+    // Tests run only in Node and are never bundled to the browser; the purity
+    // invariant applies to shipped presentation components, not their tests
+    // (a render test legitimately imports the server read model for real data).
+    // Every other boundary block in this file skips test files the same way.
+    if (rel.endsWith(".test.ts") || rel.endsWith(".test.tsx")) continue;
     it(`${rel} imports no server/engine/mutation module`, () => {
       const specs = importsOf(file);
       const badSpecs = specs.filter((s) => FORBIDDEN_SPEC.some((f) => s.includes(f)));
@@ -189,8 +194,16 @@ describe("the Reliability server read models are unreachable from client code", 
     "components/v2/V2RouteScreen.tsx",
     "components/v2/V2AssetScreen.tsx",
   ]);
+  // Server-only, non-screen consumers permitted to import the read models. The
+  // governed K-201 case investigator tools read the reliability model on the
+  // server. Proven client-unreachable by src/agent/agent-boundary.test.ts (the
+  // browser panel imports only @/agent/types).
+  const APPROVED_SERVER_CONSUMERS = new Set([
+    "agent/tools.ts",
+  ]);
+  const APPROVED_IMPORTERS = new Set([...APPROVED_SCREENS, ...APPROVED_SERVER_CONSUMERS]);
 
-  it("only v2/server, the approved screens and tests import the read models", () => {
+  it("only v2/server, the approved screens/consumers and tests import the read models", () => {
     const offenders: string[] = [];
     for (const rel of allSourceFiles()) {
       if (rel.startsWith("v2/server/")) continue;
@@ -198,15 +211,15 @@ describe("the Reliability server read models are unreachable from client code", 
       const reaches = importsOf(path.join(SRC, rel)).some((s) =>
         s.includes("v2/server/reliability"),
       );
-      if (reaches && !APPROVED_SCREENS.has(rel)) offenders.push(rel);
+      if (reaches && !APPROVED_IMPORTERS.has(rel)) offenders.push(rel);
     }
     expect(offenders, `unexpected importers: ${offenders.join(", ")}`).toEqual([]);
   });
 
-  it("the approved screens are server components (no 'use client')", () => {
-    for (const rel of APPROVED_SCREENS) {
+  it("every approved importer is server-only (no 'use client')", () => {
+    for (const rel of APPROVED_IMPORTERS) {
       const source = readFileSync(path.join(SRC, rel), "utf8");
-      expect(source.includes("use client"), `${rel} must be a server component`).toBe(false);
+      expect(source.includes("use client"), `${rel} must be server-only`).toBe(false);
     }
   });
 });

@@ -28,6 +28,10 @@ const CASES = [
   ["reliability_manager", "/v2/oee", "OEE &amp; loss intelligence", 200],
   ["plant_manager", "/v2/value-realisation", "Value Realisation", 200],
   ["reliability_engineer", "/v2/assets/K-201", "Operational thread", 200],
+  // Governed K-201 case investigator panel anchors (added Sept 10 slice)
+  ["reliability_engineer", "/v2/assets/K-201", "Governed case investigator", 200],
+  ["reliability_engineer", "/v2/assets/K-201", "Ask about K-201", 200],
+  ["reliability_engineer", "/v2/assets/K-201", "Why act now?", 200],
   // Maintenance & Materials workspace content anchors (added Sept 8 slice)
   ["materials_coordinator", "/v2/materials", "Maintenance &amp; materials", 200],
   ["materials_coordinator", "/v2/materials", "Materials readiness vs inventory health", 200],

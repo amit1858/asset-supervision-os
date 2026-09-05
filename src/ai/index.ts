@@ -1,6 +1,7 @@
 import type { AiProvider } from "./types";
 import { MockAiProvider } from "./providers/mock";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible";
+import { AzureFoundryProvider } from "./providers/azure-foundry";
 
 /**
  * Provider selection. Reads environment; defaults to the offline mock so the
@@ -9,6 +10,17 @@ import { OpenAiCompatibleProvider } from "./providers/openai-compatible";
  */
 export function getAiProvider(): AiProvider {
   const choice = (process.env.AI_PROVIDER ?? "mock").toLowerCase();
+
+  if (choice === "azure") {
+    const provider = new AzureFoundryProvider({
+      endpoint: process.env.AZURE_AI_FOUNDRY_ENDPOINT ?? "",
+      apiKey: process.env.AZURE_AI_FOUNDRY_API_KEY ?? "",
+      deployment: process.env.AZURE_AI_FOUNDRY_DEPLOYMENT ?? "",
+      apiVersion: process.env.AZURE_AI_FOUNDRY_API_VERSION ?? "2024-10-21",
+    });
+    // Fail safe to mock if the operator selected azure but left config blank.
+    return provider.isAvailable() ? provider : new MockAiProvider();
+  }
 
   if (choice === "nvidia") {
     const provider = new OpenAiCompatibleProvider({

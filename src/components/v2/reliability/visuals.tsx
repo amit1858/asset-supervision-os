@@ -6,7 +6,7 @@ import type {
   OperationalHorizonView,
   SignalSensorView,
 } from "@/v2/reliability/view-types";
-import { formatUtcDate } from "@/v2/reliability/view-types";
+import { formatUtcDate, formatUtcInstant } from "@/v2/reliability/view-types";
 import { TrustFreshnessPill } from "./primitives";
 
 /**
@@ -368,7 +368,7 @@ export function LifecycleStepper({
                 >
                   {e.typeLabel}
                 </div>
-                <div className="text-[10px] tabular-nums text-text-muted">{e.asOf}</div>
+                <div className="text-[10px] tabular-nums text-text-muted">{formatUtcInstant(e.asOf)}</div>
               </div>
             </div>
           </li>

@@ -221,9 +221,18 @@ for (const area of AREAS) {
   });
 
   describe(`the ${area.name} server read model is unreachable from client code`, () => {
-    const APPROVED_SCREENS = new Set(["components/v2/V2RouteScreen.tsx"]);
+    const APPROVED_SCREENS = new Set([
+      "components/v2/V2RouteScreen.tsx",
+    ]);
+    // Server-only, non-screen consumers permitted to import the read models.
+    // The governed K-201 case investigator tools read these models on the
+    // server. Proven client-unreachable by src/agent/agent-boundary.test.ts.
+    const APPROVED_SERVER_CONSUMERS = new Set([
+      "agent/tools.ts",
+    ]);
+    const APPROVED_IMPORTERS = new Set([...APPROVED_SCREENS, ...APPROVED_SERVER_CONSUMERS]);
 
-    it(`only v2/server, the approved screen and tests import the ${area.name} read model`, () => {
+    it(`only v2/server, the approved screen/consumers and tests import the ${area.name} read model`, () => {
       const offenders: string[] = [];
       for (const rel of allSourceFiles()) {
         if (rel.startsWith("v2/server/")) continue;
@@ -231,7 +240,7 @@ for (const area of AREAS) {
         const reaches = importsOf(path.join(SRC, rel)).some((s) =>
           s.includes(area.serverPrefix),
         );
-        if (reaches && !APPROVED_SCREENS.has(rel)) offenders.push(rel);
+        if (reaches && !APPROVED_IMPORTERS.has(rel)) offenders.push(rel);
       }
       expect(offenders, `unexpected importers: ${offenders.join(", ")}`).toEqual([]);
     });

@@ -126,7 +126,7 @@ export type TurnaroundStatus =
   | "complete";
 
 /** AI provider identifiers for the provider-neutral interface. */
-export type AiProviderId = "mock" | "nvidia" | "dgxspark";
+export type AiProviderId = "mock" | "nvidia" | "dgxspark" | "azure";
 
 /**
  * Accounting class for an AI interaction.

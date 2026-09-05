@@ -191,9 +191,19 @@ describe("the Materials server read model is server-only and V1-safe", () => {
 });
 
 describe("the Materials server read model is unreachable from client code", () => {
-  const APPROVED_SCREENS = new Set(["components/v2/V2RouteScreen.tsx"]);
+  const APPROVED_SCREENS = new Set([
+    "components/v2/V2RouteScreen.tsx",
+  ]);
+  // Server-only, non-screen consumers permitted to import the read model. The
+  // governed K-201 case investigator tools read the materials model on the
+  // server. Proven client-unreachable by src/agent/agent-boundary.test.ts (the
+  // browser panel imports only @/agent/types).
+  const APPROVED_SERVER_CONSUMERS = new Set([
+    "agent/tools.ts",
+  ]);
+  const APPROVED_IMPORTERS = new Set([...APPROVED_SCREENS, ...APPROVED_SERVER_CONSUMERS]);
 
-  it("only v2/server, the approved screen and tests import the materials read model", () => {
+  it("only v2/server, the approved screen/consumers and tests import the materials read model", () => {
     const offenders: string[] = [];
     for (const rel of allSourceFiles()) {
       if (rel.startsWith("v2/server/")) continue;
@@ -201,15 +211,15 @@ describe("the Materials server read model is unreachable from client code", () =
       const reaches = importsOf(path.join(SRC, rel)).some((s) =>
         s.includes("v2/server/materials"),
       );
-      if (reaches && !APPROVED_SCREENS.has(rel)) offenders.push(rel);
+      if (reaches && !APPROVED_IMPORTERS.has(rel)) offenders.push(rel);
     }
     expect(offenders, `unexpected importers: ${offenders.join(", ")}`).toEqual([]);
   });
 
-  it("the approved screen is a server component (no 'use client')", () => {
-    for (const rel of APPROVED_SCREENS) {
+  it("every approved importer is server-only (no 'use client')", () => {
+    for (const rel of APPROVED_IMPORTERS) {
       const source = readFileSync(path.join(SRC, rel), "utf8");
-      expect(source.includes("use client"), `${rel} must be a server component`).toBe(false);
+      expect(source.includes("use client"), `${rel} must be server-only`).toBe(false);
     }
   });
 });

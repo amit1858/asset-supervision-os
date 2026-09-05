@@ -8,6 +8,7 @@ const PROVIDER_LABEL: Record<AiProviderId, string> = {
   mock: "Mock (offline)",
   nvidia: "NVIDIA",
   dgxspark: "DGX Spark",
+  azure: "Azure AI Foundry",
 };
 
 export function ModelBadge({
