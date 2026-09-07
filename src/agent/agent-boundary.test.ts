@@ -66,7 +66,7 @@ function graph(entryRel: string) {
   return { visited, externals };
 }
 
-const CLIENT_PANEL = "components/v2/agent/K201CasePanel.tsx";
+const CLIENT_PANEL = "components/v2/agent/K201CaseInvestigator.tsx";
 const CLIENT_CONTRACT = "agent/types.ts";
 const SERVER_AGENT_MODULES = [
   "agent/tools.ts",

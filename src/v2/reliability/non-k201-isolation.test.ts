@@ -36,4 +36,18 @@ describe("V2AssetScreen — non-K-201 isolation", () => {
       /asset\.tag === K201_TAG \?[\s\S]*?\) : \([\s\S]*?<V2Placeholder\b/,
     );
   });
+
+  it("mounts the governed Case Investigator only inside the K-201 branch", () => {
+    const investigators = source.match(/<K201CaseInvestigator\b/g) ?? [];
+    expect(investigators.length).toBe(1);
+    // The single investigator sits on the K-201 branch of the ternary, so a
+    // non-K-201 asset renders no launcher and issues no agent request.
+    expect(source).toMatch(
+      /asset\.tag === K201_TAG \?[\s\S]*?<K201CaseInvestigator[\s\S]*?\) : \(/,
+    );
+  });
+
+  it("retires the old bottom-of-page panel — one canonical investigator only", () => {
+    expect(source).not.toContain("K201CasePanel");
+  });
 });

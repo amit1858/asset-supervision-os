@@ -7,6 +7,11 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     globals: true,
   },
+  esbuild: {
+    // Source components rely on the automatic JSX runtime (Next.js default);
+    // mirror it here so tests can render components with react-dom/server.
+    jsx: "automatic",
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

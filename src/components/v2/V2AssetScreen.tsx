@@ -14,7 +14,7 @@ import { OperationalThread } from "./OperationalThread";
 import { V2Placeholder } from "./V2Placeholder";
 import { V2Restricted } from "./V2Restricted";
 import { AssetReliabilityExperience } from "./reliability/AssetReliabilityExperience";
-import { K201CasePanel } from "./agent/K201CasePanel";
+import { K201CaseInvestigator } from "./agent/K201CaseInvestigator";
 import {
   getK201ReliabilityView,
   K201_TAG,
@@ -81,8 +81,8 @@ export function V2AssetScreen({ tag: rawTag }: { tag: string }) {
         <OperationalThread assetTag={asset.tag} />
         {asset.tag === K201_TAG ? (
           <>
+            <K201CaseInvestigator />
             <AssetReliabilityExperience view={getK201ReliabilityView(ctx.personaId)} />
-            <K201CasePanel />
           </>
         ) : (
           <V2Placeholder route={route} />
