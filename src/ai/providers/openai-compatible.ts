@@ -39,6 +39,34 @@ export class OpenAiCompatibleProvider implements AiProvider {
       );
     }
 
+    const payload: Record<string, unknown> = {
+      model: this.model,
+      temperature: 0.2,
+      max_tokens: request.maxOutputTokens ?? 400,
+      messages: [
+        { role: "system", content: request.system },
+        { role: "user", content: request.user },
+      ],
+    };
+
+    // NVIDIA-only structured-narration contract. Nemotron models enable
+    // chain-of-thought reasoning by default; that reasoning consumes the fixed
+    // narration token budget and truncates the JSON (finish_reason=length), so
+    // the orchestrator discards the draft and uses the deterministic fallback.
+    // Disabling reasoning (`chat_template_kwargs.enable_thinking=false`) and
+    // requesting JSON mode (`response_format:{type:"json_object"}`) yields
+    // concise, syntactically valid structured output. Both fields were confirmed
+    // accepted by a live probe against nvidia/nemotron-3-super-120b-a12b. Scoped
+    // to `nvidia` so the DGX Spark / local OpenAI-compatible endpoint contract is
+    // unchanged. JSON mode guarantees syntactic validity ONLY; the server-side
+    // zod (`providerDraftSchema`) and citation validators remain the
+    // authoritative schema/grounding gate and discard the response whole on any
+    // failure — the model can never weaken governance.
+    if (this.id === "nvidia") {
+      payload.chat_template_kwargs = { enable_thinking: false };
+      payload.response_format = { type: "json_object" };
+    }
+
     const start = Date.now();
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
@@ -46,15 +74,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify({
-        model: this.model,
-        temperature: 0.2,
-        max_tokens: request.maxOutputTokens ?? 400,
-        messages: [
-          { role: "system", content: request.system },
-          { role: "user", content: request.user },
-        ],
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
