@@ -18,6 +18,7 @@ const ok = (n, c, d = "") => results.push({ n, pass: !!c, d });
 // persona · route · expected substring · expected final status
 const CASES = [
   ["plant_manager", "/v2/plant", "Plant Executive Overview", 200],
+  ["plant_manager", "/v2/plant", "synthetic", 200],
   ["shift_supervisor", "/v2/shift", "Shift Command", 200],
   ["reliability_manager", "/v2/reliability", "Reliability Command Center", 200],
   ["reliability_engineer", "/v2/watchlist", "Asset Watchlist", 200],
@@ -37,6 +38,9 @@ const CASES = [
   ["reliability_engineer", "/v2/assets/K-201", "Why act now?", 200],
   ["reliability_engineer", "/v2/assets/K-201", "Operational thread", 200],
   ["reliability_engineer", "/v2/assets/K-201", "Read-only", 200],
+  ["reliability_manager", "/v2/portfolio", "Asset Risk Portfolio", 200],
+  ["reliability_manager", "/v2/portfolio", "canonical assets", 200],
+  ["reliability_manager", "/v2/portfolio", "Synthetic source disclosure", 200],
   // Maintenance & Materials workspace content anchors (added Sept 8 slice)
   ["materials_coordinator", "/v2/materials", "Maintenance &amp; materials", 200],
   ["materials_coordinator", "/v2/materials", "Materials readiness vs inventory health", 200],

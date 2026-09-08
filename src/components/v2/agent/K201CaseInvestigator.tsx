@@ -87,7 +87,7 @@ export function K201CaseInvestigator() {
   const isLoading = state.kind === "loading";
 
   return (
-    <section className="rounded-md border border-border bg-surface shadow-subtle">
+    <section data-journey-target="k201-investigator-launcher" className="rounded-md border border-border bg-surface shadow-subtle">
       <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">

@@ -61,22 +61,24 @@ export function V2AssetScreen({ tag: rawTag }: { tag: string }) {
       ]}
     >
       <AssetContextSync tag={asset.tag} />
-      <EnterprisePageHeader
-        eyebrow={`Asset record · ${owner.family.replace(/_/g, " ")}`}
-        title={
-          <span className="inline-flex items-center gap-2">
-            <EquipmentId tag={asset.tag} />
-            <span className="text-text-secondary">{asset.name}</span>
-          </span>
-        }
-        description={route.purpose}
-        meta={
-          <span className="inline-flex items-center gap-2">
-            <CriticalityBadge level={asset.criticality} size="sm" />
-            <AssetStatusBadge status={asset.operationalStatus} size="sm" />
-          </span>
-        }
-      />
+      <div data-journey-target="v2-page-header">
+        <EnterprisePageHeader
+          eyebrow={`Asset record · ${owner.family.replace(/_/g, " ")}`}
+          title={
+            <span className="inline-flex items-center gap-2">
+              <EquipmentId tag={asset.tag} />
+              <span className="text-text-secondary">{asset.name}</span>
+            </span>
+          }
+          description={route.purpose}
+          meta={
+            <span className="inline-flex items-center gap-2">
+              <CriticalityBadge level={asset.criticality} size="sm" />
+              <AssetStatusBadge status={asset.operationalStatus} size="sm" />
+            </span>
+          }
+        />
+      </div>
       <div className="mx-auto w-full max-w-content space-y-6 px-6 py-6">
         <OperationalThread assetTag={asset.tag} />
         {asset.tag === K201_TAG ? (

@@ -7,6 +7,7 @@ import { ContextBar } from "@/components/layout/ContextBar";
 import { VoiceProvider, useVoice } from "@/voice/VoiceContext";
 import { VoiceBriefingPanel } from "@/components/voice/VoiceBriefingPanel";
 import { cn } from "@/lib/cn";
+import { GuidedJourney } from "./GuidedJourney";
 
 interface NameMap {
   id: string;
@@ -87,6 +88,9 @@ function ShellInner({
       <header ref={headerRef} className="sticky top-0 z-30">
         <V2TopBar approvals={approvals} notifications={notifications} />
         <ContextBar plants={plants} units={units} />
+        <div className="flex justify-end border-b border-border bg-canvas px-4 py-1.5">
+          <GuidedJourney />
+        </div>
       </header>
       <div className="flex flex-1">
         <aside

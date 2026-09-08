@@ -23,6 +23,7 @@ import { getValueRealisationView } from "@/v2/server/value/value-realisation-vie
 import { getV2Route, type V2Route } from "@/v2/routes";
 import { canAccessV2Route } from "@/v2/access";
 import { v2LandingRoute } from "@/v2/nav";
+import { AssetRiskPortfolioWorkspace } from "./portfolio/AssetRiskPortfolioWorkspace";
 
 /**
  * The composed Phase 1 screen for a V2 route (server).
@@ -57,13 +58,15 @@ export function V2RouteScreen({ routeKey }: { routeKey: string }) {
 
   return (
     <V2Shell crumbs={[{ label: "V2", href: "/v2" }, { label: route.title }]}>
-      <EnterprisePageHeader
-        eyebrow={`${owner.displayName} · ${owner.family.replace(/_/g, " ")}`}
-        title={route.title}
-        description={route.purpose}
-      />
+      <div data-journey-target="v2-page-header">
+        <EnterprisePageHeader
+          eyebrow={`${owner.displayName} · ${owner.family.replace(/_/g, " ")}`}
+          title={route.title}
+          description={route.purpose}
+        />
+      </div>
       <div className="mx-auto w-full max-w-content space-y-6 px-6 py-6">
-        {brief ? <MyBrief brief={brief} variant="v2" /> : null}
+        {brief ? <div data-journey-target="v2-brief"><MyBrief brief={brief} variant="v2" /></div> : null}
         <OperationalThread />
         {renderWorkspace(route, ctx.personaId)}
       </div>
@@ -89,6 +92,8 @@ function renderWorkspace(route: V2Route, viewerId: PersonaId): ReactNode {
       return <OeeLossWorkspace view={getOeeLossView(viewerId)} />;
     case "value-realisation":
       return <ValueRealisationWorkspace view={getValueRealisationView(viewerId)} />;
+    case "portfolio":
+      return <AssetRiskPortfolioWorkspace />;
     default:
       return <V2Placeholder route={route} />;
   }

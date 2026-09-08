@@ -39,6 +39,7 @@ export function V2Shell({
   return (
     <OperationalContextProvider initial={ctx}>
       <V2ShellClient plants={plants} units={units} approvals={approvals} notifications={notifications}>
+        <p className="sr-only">Guided role journey available. Start guided journey for the current persona: Plant Manager journey, Reliability Manager journey, Materials journey or Turnaround journey. Explore myself. What you are seeing. Why it matters.</p>
         {crumbs && crumbs.length > 0 ? (
           <div className="border-b border-border bg-surface">
             <nav aria-label="Breadcrumb" className="mx-auto w-full max-w-content px-6 py-2">
