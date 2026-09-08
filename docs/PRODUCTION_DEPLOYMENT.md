@@ -2,10 +2,10 @@
 
 ## Host and deployed commit
 
-- Production host: `https://asset-supervision-jhhgsc6ki-amit1858s-projects.vercel.app`
-- Production deployment ID: `dpl_F6UiYtm34yakmopfv2uD8SZbX9xX`
-- Deployed commit: `455045ab1cdb7d5b4d997f56022db51fdf7d8e70`
-- Verified preview: `https://asset-supervision-1vh33jwos-amit1858s-projects.vercel.app`
+- Production host: `https://asset-supervision-os.vercel.app`
+- Production deployment ID: `dpl_G9KgMoAk1ccjvQ1HAFUBsCd83NQZ`
+- Deployed commit: `e4769bc2915178e9382d3f66985912bd2126bc47`
+- Verified preview: `https://asset-supervision-lvh8tw6ud-amit1858s-projects.vercel.app`
 - Repository: `amit1858/asset-supervision-os` (private).
 
 ## Runtime
@@ -25,10 +25,8 @@ AI_PROVIDER=mock
 
 No NVIDIA, Azure, DGX Spark, Snowflake, or browser-supplied credentials are configured for the
 default public deployment. Environment values are server-side only and are never rendered into
-the client. Vercel deployment protection currently redirects unauthenticated traffic on the
-project aliases to Vercel SSO; the artifact itself is ready and the protection state must be
-removed or replaced with an approved public-domain policy before using the URL as an anonymous
-public demo.
+the client. The public project alias responds without Vercel SSO protection; individual
+deployment-specific URLs may remain protected by Vercel preview access controls.
 
 ## Rollback method
 
