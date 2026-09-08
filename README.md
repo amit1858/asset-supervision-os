@@ -9,11 +9,17 @@ disconnected dashboards.
 > **All data is synthetic.** Every plant, asset, sensor reading, cost, and recommendation is
 > generated deterministically for demonstration. No real or proprietary company data is used.
 
-> **Not yet enabled (by design).** Live voice/speech capture, external model providers
-> (NVIDIA / DGX Spark), Snowflake or any database persistence, and ERP/CMMS write-back are
-> **not** connected in this build. The app runs fully offline on a deterministic seed with a
-> mock provider. Approvals and voice-proposed actions are surfaced for human confirmation but
-> are **not** persisted or executed.
+> **Evidence-backed AI posture.** The deterministic governed narrator is implemented, is the
+> default, and runs fully without credentials. NVIDIA structured narration is implemented and
+> has produced grounded hosted responses, but endpoint reliability is not sufficient to make it
+> the guaranteed demonstration path. The Azure AI Foundry adapter and contract tests are
+> implemented; live Azure inference remains unverified. The OpenAI-compatible DGX Spark adapter
+> is implemented; local model installation and live DGX inference remain pending.
+>
+> Provider output is advisory narration only. Deterministic/statistical engines calculate OEE,
+> risk, time-to-critical, exposure, and value. Humans retain approval and endorsement authority.
+> Any unavailable, invalid, unsupported, or ungrounded provider response is discarded and
+> replaced by the deterministic governed narrative. No operational write-back is enabled.
 
 ---
 
@@ -171,12 +177,23 @@ Data & AI selection via env: `DATA_SOURCE=local|snowflake`, `AI_PROVIDER=mock|nv
 
 ---
 
+## Current application capabilities
+
+- **1130/1130 tests across 88 files** and **HTTP QA 88/88**.
+- A read-only **eight-asset portfolio** using the existing canonical synthetic records.
+- Four cross-route, persona-guided journeys for Plant Manager, Reliability Manager, Materials &
+  Spares Coordinator, and Turnaround Manager.
+- Governed K-201 Case Investigator with citation validation, authority boundaries, and safe
+  deterministic fallback.
+- Turnaround, OEE and loss-intelligence, materials readiness, and value-realisation workspaces.
+- Honest unavailable/not-assessed states and prominent synthetic-data disclosure.
+
 ## Verification commands
 
 ```bash
 npm run typecheck     # strict tsc --noEmit
 npm run lint          # ESLint, next/core-web-vitals
-npm test              # Vitest (125 tests): engines, data, personas, brief, voice, boundary
+npm test              # Vitest (1130 tests across 88 files)
 npm run seed:verify   # deterministic: true + K-201 story numbers
 npm run build         # production build (Next.js App Router)
 ```
