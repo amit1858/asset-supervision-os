@@ -3,8 +3,8 @@
 ## Host and deployed commit
 
 - Production host: `https://asset-supervision-os.vercel.app`
-- Production deployment ID: `dpl_G9KgMoAk1ccjvQ1HAFUBsCd83NQZ`
-- Deployed commit: `e4769bc2915178e9382d3f66985912bd2126bc47`
+- Production deployment ID: `dpl_7c3J3xTrbX9su5D7KbZTrvYCfhqt`
+- Deployed commit: `62b9936a011276700345948162bab98fb5fc965e`
 - Verified preview: `https://asset-supervision-lvh8tw6ud-amit1858s-projects.vercel.app`
 - Repository: `amit1858/asset-supervision-os` (private).
 
