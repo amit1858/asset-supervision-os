@@ -8,12 +8,23 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 const PORT = process.env.QA_PORT || "3321";
 const BASE = `http://localhost:${PORT}`;
+const AUTH_SECRET_SENTINEL = "qa-auth-secret-sentinel-not-a-real-credential";
 const CTX = encodeURIComponent(
   JSON.stringify({ plantId: "plant-gc", unitId: "line-hds2", assetTag: "K-201", timeRange: "30d", shift: null }),
 );
 
 const results = [];
 const ok = (n, c, d = "") => results.push({ n, pass: !!c, d });
+// Set (not delete) to empty string: Next.js's dotenv loader only fills in values
+// absent from process.env, so a deleted key would fall through to a real
+// AUTH_GITHUB_ID/SECRET in a developer's .env.local and silently enable OAuth
+// during this "not configured" QA scenario.
+const serverEnv = {
+  ...process.env,
+  AUTH_SECRET: AUTH_SECRET_SENTINEL,
+  AUTH_GITHUB_ID: "",
+  AUTH_GITHUB_SECRET: "",
+};
 
 // persona · route · expected substring · expected final status
 const CASES = [
@@ -81,7 +92,13 @@ function cookie(persona) {
   return { cookie: `aso-persona=${persona}; aso-ctx=${CTX}` };
 }
 
-const server = spawn("npm", ["run", "start", "--", "-p", PORT], { shell: true, stdio: "ignore" });
+const server = spawn("npm", ["run", "start", "--", "-p", PORT], { shell: true, env: serverEnv, stdio: ["ignore", "pipe", "pipe"] });
+let serverLog = "";
+const collectServerLog = (chunk) => {
+  serverLog = (serverLog + chunk.toString()).slice(-20000);
+};
+server.stdout.on("data", collectServerLog);
+server.stderr.on("data", collectServerLog);
 let exitCode = 0;
 try {
   const up = await waitForServer();
@@ -89,9 +106,11 @@ try {
   if (!up) throw new Error("server did not start");
 
   const externalHosts = new Set();
+  const responseBodies = [];
   for (const [persona, route, expect, expStatus] of CASES) {
     const resp = await fetch(BASE + route, { headers: cookie(persona), redirect: "follow" });
     const html = await resp.text();
+    responseBodies.push(html);
     ok(`${route}[${persona}] status ${expStatus}`, resp.status === expStatus, `got ${resp.status}`);
     ok(`${route}[${persona}] content present`, html.includes(expect), `missing: ${expect}`);
     for (const m of html.matchAll(/https?:\/\/([^\/"'\s]+)/g)) {
@@ -99,7 +118,23 @@ try {
       if (!h.includes("localhost") && !h.startsWith("127.0.0.1") && h !== "www.w3.org") externalHosts.add(h);
     }
   }
+
+  for (const [route, expStatus, expect] of [
+    ["/api/auth/session", 200, "{}"],
+    ["/api/auth/providers", 200, "{}"],
+    ["/api/auth/signin/github", 503, "authentication_not_configured"],
+    ["/api/auth/callback/github", 503, "authentication_not_configured"],
+  ]) {
+    const resp = await fetch(BASE + route);
+    const body = await resp.text();
+    responseBodies.push(body);
+    ok(`${route} auth availability status ${expStatus}`, resp.status === expStatus, `got ${resp.status}`);
+    ok(`${route} auth availability body`, body.includes(expect), `missing: ${expect}`);
+  }
+
   ok("no third-party hosts in server-rendered markup", externalHosts.size === 0, [...externalHosts].join(","));
+  ok("AUTH_SECRET not in server-rendered markup or API responses", !responseBodies.join("\n").includes(AUTH_SECRET_SENTINEL));
+  ok("AUTH_SECRET not in QA server logs", !serverLog.includes(AUTH_SECRET_SENTINEL));
 
   const failed = results.filter((r) => !r.pass);
   console.log(`\n=== V2 HTTP SMOKE (${BASE}) ===`);

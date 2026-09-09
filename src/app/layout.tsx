@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import { AuthSessionProvider } from "@/components/auth/AuthSessionProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,7 +30,9 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME }} />
       </head>
-      <body className="bg-canvas text-text-primary antialiased">{children}</body>
+      <body className="bg-canvas text-text-primary antialiased">
+        <AuthSessionProvider>{children}</AuthSessionProvider>
+      </body>
     </html>
   );
 }

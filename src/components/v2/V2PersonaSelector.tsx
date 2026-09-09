@@ -11,7 +11,7 @@ import type { PersonaId } from "@/personas/types";
 import { v2LandingRoute } from "@/v2/nav";
 
 /**
- * V2 persona selector — "Viewing as: <persona>". Identical governance to v1
+ * V2 persona selector — "Explore as: <persona>". Identical governance to v1
  * (shows only authorization-permitted personas, preserves the active asset
  * thread, is a view selection and not authentication) but routes to the `/v2`
  * landing surface. Persona identity comes entirely from the registry.
@@ -74,7 +74,7 @@ export function V2PersonaSelector() {
     setOpen(false);
     if (id === personaId) return;
     setPersona(id);
-    setConfirm(`Now viewing as ${PERSONAS[id].displayName}`);
+    setConfirm(`Now exploring as ${PERSONAS[id].displayName}`);
     router.push(v2LandingRoute(id, { assetTag }));
   }
 
@@ -85,13 +85,13 @@ export function V2PersonaSelector() {
         ref={triggerRef}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`Viewing as ${active.displayName}. Change persona.`}
+        aria-label={`Explore as ${active.displayName}. This changes the demonstration lens, not your operational authority. Change persona.`}
         title={active.displayName}
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-2 rounded-md border border-[var(--color-header-control-border)] bg-[var(--color-header-control)] px-2.5 py-1.5 text-sm text-header-fg hover:bg-[var(--color-header-control-hover)]"
       >
         <Icon name="user" size={15} className="shrink-0 text-header-muted" />
-        <span className="hidden shrink-0 text-header-muted md:inline">Viewing as</span>
+        <span className="hidden shrink-0 text-header-muted md:inline">Explore as</span>
         <span className="max-w-[10.5rem] truncate font-medium xl:max-w-[16rem]">{active.displayName}</span>
         <Icon name="chevron-down" size={14} className="shrink-0 text-header-muted" />
       </button>
@@ -112,7 +112,7 @@ export function V2PersonaSelector() {
             className="absolute right-0 z-40 mt-1 w-72 overflow-hidden rounded-md border border-border bg-surface shadow-panel"
           >
             <div className="border-b border-border px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              Viewing as
+              Explore as — changes the demonstration lens only
             </div>
             <ul className="max-h-[60vh] overflow-y-auto py-1">
               {permitted.map((id) => {

@@ -95,7 +95,7 @@ for (const vp of [{ w: 1440, h: 900 }, { w: 1024, h: 768 }]) {
   ok("Discuss brief launcher present", await page.getByRole("button", { name: /Discuss brief/ }).first().isVisible());
 
   // persona switch changes nav/landing
-  await page.getByRole("button", { name: /Viewing as/ }).click();
+  await page.getByRole("button", { name: /Explore as/ }).click();
   await page.getByRole("option", { name: /Plant Manager/ }).click();
   await page.waitForURL(/plant-overview/, { timeout: 10000 }).catch(() => {});
   ok("persona switch routes to Plant Overview", /plant-overview/.test(page.url()));

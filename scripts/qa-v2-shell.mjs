@@ -20,6 +20,7 @@ const PORT = process.env.QA_PORT || "3319";
 const BASE = process.env.QA_BASE_URL || `http://localhost:${PORT}`;
 const START_SERVER = process.env.QA_NO_SERVER !== "1";
 const OUT = process.env.QA_OUT || "qa/v2-phase1/windows";
+const AUTH_SECRET_SENTINEL = "qa-auth-secret-sentinel-not-a-real-credential";
 mkdirSync(OUT, { recursive: true });
 
 const CTX = JSON.stringify({
@@ -106,6 +107,18 @@ async function launchBrowser() {
 }
 
 const externalHosts = new Set();
+let serverLog = "";
+// Set (not delete) to empty string: Next.js's dotenv loader only fills in values
+// absent from process.env, so a deleted key would fall through to a real
+// AUTH_GITHUB_ID/SECRET in a developer's .env.local and silently enable OAuth
+// during this "not configured" QA scenario.
+const serverEnv = {
+  ...process.env,
+  AUTH_SECRET: AUTH_SECRET_SENTINEL,
+  AUTH_GITHUB_ID: "",
+  AUTH_GITHUB_SECRET: "",
+};
+
 function trackHosts(page) {
   page.on("request", (r) => {
     try {
@@ -121,8 +134,14 @@ try {
   if (START_SERVER) {
     server = spawn("npm", ["run", "start", "--", "-p", PORT], {
       shell: true,
-      stdio: "ignore",
+      env: serverEnv,
+      stdio: ["ignore", "pipe", "pipe"],
     });
+    const collectServerLog = (chunk) => {
+      serverLog = (serverLog + chunk.toString()).slice(-20000);
+    };
+    server.stdout.on("data", collectServerLog);
+    server.stderr.on("data", collectServerLog);
   }
   const up = await waitForServer();
   ok("next start is reachable", up, BASE);
@@ -248,7 +267,7 @@ try {
     ok("Escape closes assistant and returns focus", focusReturned);
 
     // Persona selector open + accessible name intact.
-    const selector = page.getByRole("button", { name: /Viewing as/i }).first();
+    const selector = page.getByRole("button", { name: /Explore as/i }).first();
     const selectorName = await selector.getAttribute("aria-label").catch(() => null);
     await selector.click().catch(() => {});
     await page.waitForTimeout(300);
@@ -272,6 +291,62 @@ try {
     await ctx.close();
   }
 
+  // Auth.js must remain unavailable when OAuth configuration is incomplete,
+  // while the guest-safe session read continues to work for deterministic mode.
+  {
+    const session = await fetch(BASE + "/api/auth/session");
+    const sessionBody = await session.text();
+    const signIn = await fetch(BASE + "/api/auth/signin/github");
+    const signInBody = await signIn.text();
+    ok("auth session is guest-safe without complete OAuth config", session.status === 200 && sessionBody === "{}");
+    ok("GitHub sign-in endpoint unavailable without complete OAuth config", signIn.status === 503 && /authentication_not_configured/.test(signInBody));
+    ok("AUTH_SECRET not in auth API responses", !(sessionBody + signInBody).includes(AUTH_SECRET_SENTINEL));
+  }
+
+  // The QA server receives a temporary sentinel AUTH_SECRET via process env.
+  // It must never escape into rendered HTML, browser storage, or client JS.
+  {
+    const { ctx, page } = await stateContext("reliability_manager");
+    await page.goto(BASE + "/v2/reliability", { waitUntil: "networkidle" });
+    const html = await page.content();
+    const storageDump = await page.evaluate(async () => {
+      const local = [];
+      const session = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        local.push([key, key ? localStorage.getItem(key) : null]);
+      }
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        session.push([key, key ? sessionStorage.getItem(key) : null]);
+      }
+      const indexedDbNames =
+        typeof indexedDB.databases === "function"
+          ? (await indexedDB.databases()).map((db) => db.name)
+          : [];
+      return JSON.stringify({ local, session, indexedDbNames });
+    });
+    const bundleUrls = await page.evaluate(() =>
+      Array.from(
+        new Set(
+          performance
+            .getEntriesByType("resource")
+            .map((entry) => entry.name)
+            .filter((url) => url.includes("/_next/static/") && url.endsWith(".js")),
+        ),
+      ),
+    );
+    let bundleLeak = false;
+    for (const url of bundleUrls) {
+      const body = await fetch(url).then((r) => r.text());
+      if (body.includes(AUTH_SECRET_SENTINEL)) bundleLeak = true;
+    }
+    ok("AUTH_SECRET not in rendered HTML", !html.includes(AUTH_SECRET_SENTINEL));
+    ok("AUTH_SECRET not in browser storage", !storageDump.includes(AUTH_SECRET_SENTINEL));
+    ok("AUTH_SECRET not in client bundles", !bundleLeak);
+    await ctx.close();
+  }
+
   // Placeholder / honest Phase-2 surface (portfolio).
   {
     const { ctx, page } = await stateContext("plant_manager");
@@ -292,6 +367,7 @@ try {
 
   await browser.close();
   ok("no third-party network hosts", externalHosts.size === 0, [...externalHosts].join(","));
+  ok("AUTH_SECRET not in QA server logs", !serverLog.includes(AUTH_SECRET_SENTINEL));
 
   const failed = results.filter((r) => !r.pass);
   console.log(`\n=== V2 SHELL QA (${BASE}) ===`);
