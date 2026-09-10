@@ -14,8 +14,13 @@ import { v2NavItems } from "@/v2/nav";
  * hand-authored v2 navigation model (decision §3). Hrefs are mapped into the
  * `/v2` namespace; the `/design-system` showcase can never appear because it is
  * not a registry nav item (decision §4).
+ *
+ * `onNavigate` is optional and only used by the mobile navigation drawer
+ * (`MobileNavDrawer`) to close itself the moment a destination is chosen; the
+ * persistent desktop sidebar renders this component without it and is
+ * otherwise unchanged.
  */
-export function V2SideNavigation() {
+export function V2SideNavigation({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const { personaId } = useOperationalContext();
   const persona = getPersona(personaId);
@@ -38,8 +43,9 @@ export function V2SideNavigation() {
               <Link
                 href={item.v2Href}
                 aria-current={active ? "page" : undefined}
+                onClick={onNavigate}
                 className={cn(
-                  "flex items-center gap-2.5 rounded px-2.5 py-2 text-sm transition-colors duration-fast",
+                  "flex max-lg:min-h-11 items-center gap-2.5 rounded px-2.5 py-2 text-sm transition-colors duration-fast",
                   active
                     ? "bg-brand-subtle font-medium text-brand-text"
                     : "text-text-secondary hover:bg-elevated hover:text-text-primary",

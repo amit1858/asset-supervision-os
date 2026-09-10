@@ -21,7 +21,8 @@ export type UiIconName =
   | "voice"
   | "mic"
   | "stop"
-  | "send";
+  | "send"
+  | "more";
 
 const P: Record<UiIconName, string> = {
   // nav
@@ -54,6 +55,7 @@ const P: Record<UiIconName, string> = {
   mic: "M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3zM19 11v1a7 7 0 01-14 0v-1M12 19v3M8.5 22h7",
   stop: "M7 7h10v10H7z",
   send: "M22 2L11 13M22 2l-7 20-4-9-9-4z",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
 };
 
 export function Icon({

@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { V2TopBar } from "./V2TopBar";
 import { V2SideNavigation } from "./V2SideNavigation";
+import { MobileNavDrawer } from "./MobileNavDrawer";
 import { ContextBar } from "@/components/layout/ContextBar";
 import { VoiceProvider, useVoice } from "@/voice/VoiceContext";
 import { VoiceBriefingPanel } from "@/components/voice/VoiceBriefingPanel";
+import { useOperationalContext } from "@/context/OperationalContext";
+import { getPersona } from "@/personas/registry";
 import { cn } from "@/lib/cn";
 import { GuidedJourney } from "./GuidedJourney";
 
@@ -64,8 +67,11 @@ function ShellInner({
   children: ReactNode;
 }) {
   const { isOpen } = useVoice();
+  const { personaId } = useOperationalContext();
+  const persona = getPersona(personaId);
   const headerRef = useRef<HTMLElement>(null);
   const [headerH, setHeaderH] = useState<number | null>(null);
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     const el = headerRef.current;
@@ -86,12 +92,19 @@ function ShellInner({
   return (
     <div className="flex min-h-screen flex-col bg-canvas" style={shellStyle}>
       <header ref={headerRef} className="sticky top-0 z-30">
-        <V2TopBar approvals={approvals} notifications={notifications} />
+        <V2TopBar
+          approvals={approvals}
+          notifications={notifications}
+          onOpenNav={() => setNavOpen(true)}
+        />
         <ContextBar plants={plants} units={units} />
         <div className="flex justify-end border-b border-border bg-canvas px-4 py-1.5">
           <GuidedJourney />
         </div>
       </header>
+      <MobileNavDrawer open={navOpen} onClose={() => setNavOpen(false)} contextLabel={persona.displayName}>
+        <V2SideNavigation onNavigate={() => setNavOpen(false)} />
+      </MobileNavDrawer>
       <div className="flex flex-1">
         <aside
           className="sticky hidden w-56 shrink-0 self-start overflow-y-auto border-r border-border bg-surface lg:block"

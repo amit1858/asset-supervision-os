@@ -88,11 +88,11 @@ export function V2PersonaSelector() {
         aria-label={`Explore as ${active.displayName}. This changes the demonstration lens, not your operational authority. Change persona.`}
         title={active.displayName}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-2 rounded-md border border-[var(--color-header-control-border)] bg-[var(--color-header-control)] px-2.5 py-1.5 text-sm text-header-fg hover:bg-[var(--color-header-control-hover)]"
+        className="inline-flex items-center gap-1 rounded-md border border-[var(--color-header-control-border)] bg-[var(--color-header-control)] px-1.5 py-1.5 text-sm text-header-fg hover:bg-[var(--color-header-control-hover)] lg:gap-2 lg:px-2.5"
       >
-        <Icon name="user" size={15} className="shrink-0 text-header-muted" />
-        <span className="hidden shrink-0 text-header-muted md:inline">Explore as</span>
-        <span className="max-w-[10.5rem] truncate font-medium xl:max-w-[16rem]">{active.displayName}</span>
+        <Icon name="user" size={15} className="hidden shrink-0 text-header-muted lg:inline" />
+        <span className="hidden shrink-0 text-header-muted lg:inline">Explore as</span>
+        <span className="max-w-[4rem] truncate font-medium sm:max-w-[6rem] lg:max-w-[10.5rem] xl:max-w-[16rem]">{active.displayName}</span>
         <Icon name="chevron-down" size={14} className="shrink-0 text-header-muted" />
       </button>
 
