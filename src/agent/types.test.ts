@@ -9,10 +9,10 @@ import {
 } from "./types";
 
 describe("agent client-safe contract", () => {
-  it("maps provider ids to exactly the three permitted display labels", () => {
+  it("maps provider ids to the permitted truthful display labels", () => {
     expect(providerDisplayLabel("azure")).toBe("Azure AI Foundry");
     expect(providerDisplayLabel("dgxspark")).toBe("Local model");
-    expect(providerDisplayLabel("nvidia")).toBe("Local model");
+    expect(providerDisplayLabel("nvidia")).toBe("NVIDIA");
     expect(providerDisplayLabel("mock")).toBe("Deterministic fallback");
   });
 

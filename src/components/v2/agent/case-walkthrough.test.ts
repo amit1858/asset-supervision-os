@@ -20,7 +20,7 @@ function fixture(
     question: "Why does K-201 require action now?",
     questionId: "why_action_now",
     provider: "nvidia",
-    providerDisplay: "Local model",
+    providerDisplay: "NVIDIA",
     model: "nvidia/nemotron-3-super-120b-a12b",
     generatedAt: RAW_ISO,
     viewer: { personaId: "reliability_manager", personaName: "Reliability Manager" },

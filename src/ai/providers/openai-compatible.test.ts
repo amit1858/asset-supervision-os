@@ -19,7 +19,7 @@ function makeProvider(
     id: "nvidia",
     baseUrl: "https://integrate.example.com/v1/",
     apiKey: "secret-key",
-    model: "nvidia/nemotron-3-super-120b-a12b",
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b",
     ...overrides,
   });
 }
@@ -29,11 +29,15 @@ function okResponse(content: string) {
     ok: true,
     status: 200,
     statusText: "OK",
+    url: "https://integrate.example.com/v1/chat/completions",
+    headers: new Headers({
+      "content-type": "application/json",
+      "nvcf-reqid": "safe-request-id",
+    }),
     json: async () => ({
       choices: [{ message: { content } }],
       usage: { prompt_tokens: 10, completion_tokens: 20 },
     }),
-    text: async () => content,
   } as unknown as Response;
 }
 
@@ -42,8 +46,11 @@ function errorResponse(status: number) {
     ok: false,
     status,
     statusText: `status ${status}`,
-    json: async () => ({}),
-    text: async () => "error body",
+    url: "https://integrate.example.com/v1/chat/completions",
+    headers: new Headers({
+      "content-type": "application/problem+json",
+      "nvcf-reqid": "safe-request-id",
+    }),
   } as unknown as Response;
 }
 
@@ -67,6 +74,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -83,65 +91,162 @@ describe("OpenAiCompatibleProvider availability", () => {
   });
 });
 
-describe("OpenAiCompatibleProvider — NVIDIA structured-narration contract", () => {
-  it("disables reasoning via chat_template_kwargs.enable_thinking=false", async () => {
-    fetchMock.mockResolvedValue(okResponse('{"ok":true}'));
-    await makeProvider().generate(REQUEST);
-    const body = lastRequestBody(fetchMock);
-    expect(body.chat_template_kwargs).toEqual({ enable_thinking: false });
-  });
-
-  it("requests JSON mode via response_format.type=json_object", async () => {
-    fetchMock.mockResolvedValue(okResponse('{"ok":true}'));
-    await makeProvider().generate(REQUEST);
-    const body = lastRequestBody(fetchMock);
-    expect(body.response_format).toEqual({ type: "json_object" });
-  });
-
-  it("retains the caller's narration token budget (800) unchanged", async () => {
-    fetchMock.mockResolvedValue(okResponse('{"ok":true}'));
-    await makeProvider().generate(REQUEST);
-    const body = lastRequestBody(fetchMock);
-    expect(body.max_tokens).toBe(800);
-    expect(body.temperature).toBe(0.2);
-    expect(body.model).toBe("nvidia/nemotron-3-super-120b-a12b");
-  });
-
-  it("authenticates with a Bearer token and posts to /chat/completions", async () => {
+describe("OpenAiCompatibleProvider NVIDIA request contract", () => {
+  it("posts once to the exact non-duplicated chat-completions URL", async () => {
     fetchMock.mockResolvedValue(okResponse('{"ok":true}'));
     await makeProvider().generate(REQUEST);
     const [url, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
     expect(url).toBe("https://integrate.example.com/v1/chat/completions");
+    expect(url).not.toContain("/v1/v1/");
     expect(init.method).toBe("POST");
-    const headers = lastRequestHeaders(fetchMock);
-    expect(headers.Authorization).toMatch(/^Bearer /);
+    expect(init.cache).toBe("no-store");
   });
 
-  it("returns provider content verbatim so the server-side gate can judge it", async () => {
-    // The adapter must NOT strip, repair, or interpret provider output. Schema
-    // and citation enforcement live in the orchestrator, which discards the
-    // whole draft on any failure.
+  it("creates one Bearer authorization value and JSON content type", async () => {
+    fetchMock.mockResolvedValue(okResponse('{"ok":true}'));
+    await makeProvider().generate(REQUEST);
+    const headers = lastRequestHeaders(fetchMock);
+    const authorization = headers.Authorization;
+    expect(authorization).toBe(`Bearer ${"secret-key"}`);
+    expect(authorization?.match(/Bearer/g)).toHaveLength(1);
+    expect(headers["Content-Type"]).toBe("application/json");
+  });
+
+  it("uses the current non-streaming NVIDIA chat request schema", async () => {
+    fetchMock.mockResolvedValue(okResponse('{"ok":true}'));
+    await makeProvider().generate(REQUEST);
+    const body = lastRequestBody(fetchMock);
+    expect(body).toEqual({
+      model: "nvidia/nemotron-3.5-lightning-30b-a3b",
+      temperature: 0.2,
+      top_p: 0.95,
+      max_tokens: 800,
+      stream: false,
+      messages: [
+        { role: "system", content: "system" },
+        { role: "user", content: "user" },
+      ],
+      chat_template_kwargs: { enable_thinking: false },
+    });
+    expect(body).not.toHaveProperty("response_format");
+  });
+
+  it("returns provider content and provenance for server-side validation", async () => {
     const raw = '{"situationSummary":"x","claims":[]}';
     fetchMock.mockResolvedValue(okResponse(raw));
     const result = await makeProvider().generate(REQUEST);
     expect(result.text).toBe(raw);
     expect(result.provider).toBe("nvidia");
-    expect(result.model).toBe("nvidia/nemotron-3-super-120b-a12b");
-  });
-
-  it("throws on a transient 503 so the orchestrator falls back deterministically", async () => {
-    fetchMock.mockResolvedValue(errorResponse(503));
-    await expect(makeProvider().generate(REQUEST)).rejects.toThrow(/request failed: 503/);
-  });
-
-  it("throws on a network error so the orchestrator falls back deterministically", async () => {
-    fetchMock.mockRejectedValue(new Error("network down"));
-    await expect(makeProvider().generate(REQUEST)).rejects.toThrow(/network down/);
+    expect(result.model).toBe("nvidia/nemotron-3.5-lightning-30b-a3b");
   });
 });
 
-describe("OpenAiCompatibleProvider — DGX Spark / local contract is unchanged", () => {
-  it("does NOT add NVIDIA-only fields for a dgxspark provider", async () => {
+describe("OpenAiCompatibleProvider safe failure diagnostics", () => {
+  it.each([
+    [401, "authentication_or_entitlement_rejected"],
+    [403, "authentication_or_entitlement_rejected"],
+    [404, "endpoint_or_model_unavailable"],
+    [429, "rate_limited_or_quota_unavailable"],
+    [422, "request_schema_rejected"],
+    [500, "nvidia_service_failure"],
+    [503, "nvidia_service_failure"],
+  ])("maps upstream %i to %s", async (status, category) => {
+    fetchMock.mockResolvedValue(errorResponse(status));
+    const error = await makeProvider().generate(REQUEST).catch((reason) => reason);
+    expect(error.diagnostics).toEqual({
+      origin: "https://integrate.example.com",
+      pathname: "/v1/chat/completions",
+      status,
+      requestId: "safe-request-id",
+      category,
+      model: "nvidia/nemotron-3.5-lightning-30b-a3b",
+      contentType: "application/problem+json",
+      stage: "request",
+    });
+  });
+
+  it("maps a network exception without leaking its message", async () => {
+    fetchMock.mockRejectedValue(new Error("network down for secret-key"));
+    const error = await makeProvider().generate(REQUEST).catch((reason) => reason);
+    expect(error.diagnostics.category).toBe("network_tls_or_dns_failure");
+    expect(String(error)).not.toMatch(/network down|secret-key/);
+  });
+
+  it("maps a request timeout", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            const error = new Error("secret-key");
+            error.name = "AbortError";
+            reject(error);
+          });
+        }),
+    );
+    const pending = makeProvider({ timeoutMs: 25 }).generate(REQUEST);
+    const rejection = expect(pending).rejects.toMatchObject({
+      diagnostics: { category: "provider_timeout", stage: "request" },
+    });
+    await vi.advanceTimersByTimeAsync(25);
+    await rejection;
+  });
+
+  it("keeps the timeout active while parsing the response body", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation((_url, init: RequestInit) =>
+      Promise.resolve({
+        ...okResponse(""),
+        json: () =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => {
+              const error = new Error("secret-key");
+              error.name = "AbortError";
+              reject(error);
+            });
+          }),
+      } as Response),
+    );
+    const pending = makeProvider({ timeoutMs: 25 }).generate(REQUEST);
+    const rejection = expect(pending).rejects.toMatchObject({
+      diagnostics: { category: "provider_timeout", stage: "body_parsing" },
+    });
+    await vi.advanceTimersByTimeAsync(25);
+    await rejection;
+  });
+
+  it("maps a 2xx JSON parse failure without exposing the body", async () => {
+    fetchMock.mockResolvedValue({
+      ...okResponse(""),
+      json: async () => {
+        throw new SyntaxError("raw upstream secret");
+      },
+    });
+    const error = await makeProvider().generate(REQUEST).catch((reason) => reason);
+    expect(error.diagnostics).toMatchObject({
+      status: 200,
+      category: "response_schema_mismatch",
+      stage: "body_parsing",
+    });
+    expect(String(error)).not.toContain("raw upstream secret");
+  });
+
+  it("maps a 2xx completion-schema mismatch", async () => {
+    fetchMock.mockResolvedValue({
+      ...okResponse(""),
+      json: async () => ({ choices: [] }),
+    });
+    const error = await makeProvider().generate(REQUEST).catch((reason) => reason);
+    expect(error.diagnostics).toMatchObject({
+      status: 200,
+      category: "response_schema_mismatch",
+      stage: "schema_validation",
+    });
+  });
+});
+
+describe("OpenAiCompatibleProvider DGX Spark contract", () => {
+  it("does not add NVIDIA-only fields for a DGX Spark provider", async () => {
     fetchMock.mockResolvedValue(okResponse('{"ok":true}'));
     const provider = makeProvider({
       id: "dgxspark",
@@ -152,12 +257,6 @@ describe("OpenAiCompatibleProvider — DGX Spark / local contract is unchanged",
     const body = lastRequestBody(fetchMock);
     expect(body).not.toHaveProperty("chat_template_kwargs");
     expect(body).not.toHaveProperty("response_format");
-    // Core request shape is otherwise identical.
-    expect(body.model).toBe("local-model");
-    expect(body.max_tokens).toBe(800);
-    expect(body.messages).toEqual([
-      { role: "system", content: "system" },
-      { role: "user", content: "user" },
-    ]);
+    expect(body.stream).toBe(false);
   });
 });

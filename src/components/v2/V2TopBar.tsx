@@ -8,6 +8,7 @@ import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
 import { VoiceHeaderButton } from "@/components/voice/VoiceLauncher";
 import { V2PersonaSelector } from "./V2PersonaSelector";
 import { useAuthSession } from "@/components/auth/AuthSessionProvider";
+import { useModelConnection } from "@/components/auth/ModelConnectionProvider";
 
 /**
  * V2 top bar (tier 1). Mirrors the v1 chrome — identity, global search, and
@@ -17,10 +18,9 @@ import { useAuthSession } from "@/components/auth/AuthSessionProvider";
  *
  * Identity here comes from the real Auth.js session (`useAuthSession`), never
  * a mock. Signing in identifies the visitor; it does not, by itself, change
- * persona authority (see `V2PersonaSelector`). "Connect your model" is
- * presentational only until BYOK provider wiring ships — it is always
- * disabled here so neither guest nor authenticated visitors see a misleading
- * active action.
+ * persona authority (see `V2PersonaSelector`). Authenticated visitors may
+ * connect NVIDIA in this tab until reload; guests remain on deterministic
+ * narration and cannot open the credential surface.
  *
  * Below `lg` there is no room for every desktop control at once (voice,
  * notifications, approvals, theme — 4 controls, ~215px). Those four move
@@ -41,6 +41,7 @@ export function V2TopBar({
   onOpenNav?: () => void;
 }) {
   const { session, status } = useAuthSession();
+  const { connection, openConnection } = useModelConnection();
 
   const isAuthenticated = status === "authenticated" && Boolean(session?.user);
   const isLoading = status === "loading";
@@ -95,12 +96,34 @@ export function V2TopBar({
         <V2PersonaSelector />
         <button
           type="button"
-          disabled
-          title="Model connection is not enabled in this build — live provider connection is not yet wired up."
-          className="ml-0.5 flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--color-header-control-border)] bg-[var(--color-header-control)] px-1.5 py-1.5 text-sm text-header-fg opacity-50 disabled:cursor-not-allowed lg:px-2"
+          aria-disabled={!isAuthenticated}
+          onClick={() => {
+            if (isAuthenticated) openConnection();
+          }}
+          aria-label={
+            isAuthenticated
+              ? connection.status === "connected"
+                ? "NVIDIA connected in this tab until reload. Manage model connection."
+                : "Connect your model"
+              : "Deterministic narration — model connection unavailable in Guest Demo. Sign in to connect NVIDIA."
+          }
+          title={
+            isAuthenticated
+              ? connection.status === "connected"
+                ? "NVIDIA is connected in this tab until reload, sign-out, or disconnect."
+                : "Connect NVIDIA in this tab until reload, sign-out, or disconnect."
+              : "Guest Demo uses governed deterministic narration. Sign in to connect NVIDIA."
+          }
+          className="ml-0.5 flex h-11 shrink-0 items-center gap-1.5 rounded-md border border-[var(--color-header-control-border)] bg-[var(--color-header-control)] px-1.5 py-1.5 text-sm text-header-fg hover:bg-[var(--color-header-control-hover)] aria-disabled:cursor-not-allowed aria-disabled:opacity-50 lg:h-auto lg:px-2"
         >
           <Icon name="agent" size={15} />
-          <span className="hidden min-[1360px]:inline">Model connection — coming next</span>
+          <span className="hidden min-[1360px]:inline">
+            {connection.status === "connected"
+              ? "NVIDIA connected"
+              : isAuthenticated
+                ? "Connect your model"
+                : "Deterministic narration"}
+          </span>
         </button>
         <div className="hidden lg:block">
           <ThemeSwitcher />

@@ -2,6 +2,8 @@ import "server-only";
 import type { PersonaId } from "@/personas/types";
 import { getAiProvider } from "@/ai";
 import type { EvidenceLine } from "@/ai/types";
+import type { AiProvider } from "@/ai/types";
+import { ProviderRequestError } from "@/ai/providers/openai-compatible";
 import { makeViewBundle, runAgentToolsWith } from "./tools";
 import { toolPlanFor } from "./plan";
 import { buildDeterministicResponse } from "./deterministic";
@@ -13,6 +15,33 @@ import {
   providerDisplayLabel,
   providerDraftSchema,
 } from "./types";
+
+type ProviderFallbackCategory =
+  | "provider_request_failed"
+  | "provider_output_not_json"
+  | "provider_output_schema_mismatch"
+  | "provider_output_grounding_rejected";
+
+function reportProviderFallback(
+  provider: AiProvider,
+  category: ProviderFallbackCategory,
+  error?: unknown,
+): void {
+  if (error instanceof ProviderRequestError) {
+    console.warn("[agent-provider-fallback]", error.diagnostics);
+    return;
+  }
+  console.warn("[agent-provider-fallback]", {
+    category,
+    model: provider.model,
+    stage:
+      category === "provider_request_failed"
+        ? "request"
+        : category === "provider_output_grounding_rejected"
+          ? "grounding_validation"
+          : "schema_validation",
+  });
+}
 
 /**
  * The governed K-201 case orchestrator (server-only).
@@ -34,6 +63,8 @@ export interface InvestigateParams {
   readonly questionId: AgentQuestionId;
   readonly question: string;
   readonly requestId: string;
+  /** Optional request-scoped provider. Never store this outside the request. */
+  readonly provider?: AiProvider;
   /** Injected clock for deterministic tests; defaults to now. */
   readonly now?: Date;
 }
@@ -56,7 +87,7 @@ export async function investigateK201Case(
     generatedAt,
   });
 
-  const provider = getAiProvider();
+  const provider = params.provider ?? getAiProvider();
 
   // Offline / no-key path: the deterministic response IS the answer.
   if (provider.id === "mock" || !provider.isAvailable()) {
@@ -97,13 +128,22 @@ async function tryProviderNarration(
     });
 
     const parsedJson = extractJson(result.text);
-    if (parsedJson === null) return null;
+    if (parsedJson === null) {
+      reportProviderFallback(provider, "provider_output_not_json");
+      return null;
+    }
 
     const draft = providerDraftSchema.safeParse(parsedJson);
-    if (!draft.success) return null;
+    if (!draft.success) {
+      reportProviderFallback(provider, "provider_output_schema_mismatch");
+      return null;
+    }
 
     const validation = validateProviderDraft(draft.data, citations);
-    if (!validation.valid) return null;
+    if (!validation.valid) {
+      reportProviderFallback(provider, "provider_output_grounding_rejected");
+      return null;
+    }
 
     const providerId = provider.id as AgentProviderId;
     return {
@@ -116,7 +156,8 @@ async function tryProviderNarration(
       generationStatus: "provider_grounded",
       deterministicFallback: false,
     };
-  } catch {
+  } catch (error) {
+    reportProviderFallback(provider, "provider_request_failed", error);
     return null;
   }
 }

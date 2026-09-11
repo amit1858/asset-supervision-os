@@ -3,36 +3,34 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Auth UX truthfulness pass — source invariants for the V2 top bar's
- * "Connect your model" action. Until BYOK provider wiring ships, this
- * control must never present as an active feature for guest or
- * authenticated visitors — it is unconditionally disabled with an honest
- * label and tooltip.
+ * Governed session-scoped BYOK source invariants. Authentication controls
+ * access to the connection surface; it does not itself connect a provider.
  */
 const source = readFileSync(
   join(process.cwd(), "src/components/v2/V2TopBar.tsx"),
   "utf8",
 );
 
-describe("V2TopBar — non-operational model connection action", () => {
-  it("renders the model connection control as unconditionally disabled", () => {
-    expect(source).toMatch(/<button[\s\S]*?disabled[\s\S]*?Model connection/);
-    // Must not be gated on authentication state — no isAuthenticated-driven
-    // disabled/onClick wiring for this control.
-    expect(source).not.toContain("disabled={!isAuthenticated}");
-    expect(source).not.toContain("onClick={() => isAuthenticated && setRuntimeOpen(true)}");
+describe("V2TopBar — governed model connection action", () => {
+  it("enables the surface only for authenticated users", () => {
+    expect(source).toContain("aria-disabled={!isAuthenticated}");
+    expect(source).toContain("if (isAuthenticated) openConnection()");
   });
 
-  it("uses the honest coming-next label and tooltip, not an active Connect your model label", () => {
-    expect(source).toContain("Model connection — coming next");
+  it("explains guest deterministic narration without implying a connection", () => {
+    expect(source).toContain("Connect your model");
+    expect(source).toContain("Deterministic narration");
     expect(source).toContain(
-      "Model connection is not enabled in this build — live provider connection is not yet wired up.",
+      "Guest Demo uses governed deterministic narration. Sign in to connect NVIDIA.",
     );
-    expect(source).not.toContain(">Connect your model<");
+    expect(source).toContain(
+      "Deterministic narration — model connection unavailable in Guest Demo. Sign in to connect NVIDIA.",
+    );
   });
 
-  it("no longer mounts the BYOK RuntimeDrawer from the top bar", () => {
-    expect(source).not.toContain("RuntimeDrawer");
-    expect(source).not.toContain("runtimeOpen");
+  it("shows the connected state without conflating identity or persona", () => {
+    expect(source).toContain("NVIDIA connected");
+    expect(source).toContain("<V2PersonaSelector />");
+    expect(source).toContain('href="/access"');
   });
 });

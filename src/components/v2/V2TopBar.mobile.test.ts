@@ -83,7 +83,9 @@ describe("V2TopBar — always-visible identity, persona and model-connection sta
   });
 
   it("defers verbose model and identity labels until 1360px to avoid the 1280px xl breakpoint overflow", () => {
-    expect(source).toContain('className="hidden min-[1360px]:inline">Model connection — coming next</span>');
+    expect(source).toMatch(
+      /className="hidden min-\[1360px\]:inline">[\s\S]*?Connect your model/,
+    );
     expect(source).toContain('className="hidden max-w-[10rem] truncate min-[1360px]:inline">{identityLabel}</span>');
     expect(source).not.toContain("truncate xl:inline");
   });

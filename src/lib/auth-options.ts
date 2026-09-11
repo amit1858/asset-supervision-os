@@ -49,7 +49,7 @@ export const authOptions: NextAuthOptions = {
       // Runs only at sign-in (when `account`/`profile` are present); persists
       // the provider name and display identity into the JWT for later
       // requests. No provider API keys or BYOK secrets ever pass through
-      // this token — those remain client-memory-only in the runtime drawer.
+      // this token — those remain client-memory-only in the model connection drawer.
       if (account) {
         token.provider = account.provider;
       }

@@ -80,6 +80,37 @@ describe("orchestrator — provider selection and grounding", () => {
     expect(r.situationSummary).toContain("governed reliability review");
   });
 
+  it("ignores provider attempts to mutate deterministic governed fields", async () => {
+    const draftWithForbiddenExtras = JSON.stringify({
+      situationSummary: "K-201 is under a governed reliability review.",
+      claims: [
+        {
+          id: "c1",
+          text: "The governed assessment scores K-201 health at 52.",
+          kind: "reliability",
+          citationIds: ["get_reliability_assessment:health"],
+        },
+      ],
+      riskScore: 0,
+      citations: [],
+      proposedIntervention: null,
+      authorityHandoff: null,
+    });
+    mockedGetProvider.mockReturnValue(
+      provider("nvidia", { generateText: draftWithForbiddenExtras }),
+    );
+    const r = await investigate();
+    expect(r.generationStatus).toBe("provider_grounded");
+    expect(
+      r.citations.find(
+        (citation) => citation.id === "get_reliability_assessment:risk",
+      )?.value,
+    ).toBe("68");
+    expect(r.proposedIntervention?.isExistingRecommendation).toBe(true);
+    expect(r.authorityHandoff?.nextActPersonaName).toBeTruthy();
+    expect("riskScore" in r).toBe(false);
+  });
+
   it("discards a self-action narration and falls back to deterministic", async () => {
     const badDraft = JSON.stringify({
       situationSummary: "I approved the K-201 work order.",

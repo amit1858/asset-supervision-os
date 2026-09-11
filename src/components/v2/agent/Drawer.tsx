@@ -23,6 +23,7 @@ export function Drawer({
   titleId,
   title,
   subtitle,
+  closeLabel = "Close dialog",
   children,
 }: {
   open: boolean;
@@ -30,6 +31,7 @@ export function Drawer({
   titleId: string;
   title: ReactNode;
   subtitle?: ReactNode;
+  closeLabel?: string;
   children: ReactNode;
 }) {
   const [mounted, setMounted] = useState(false);
@@ -123,7 +125,7 @@ export function Drawer({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close investigator"
+            aria-label={closeLabel}
             className={cn(
               "shrink-0 rounded-md border border-border bg-elevated px-2.5 py-1 text-xs font-medium text-text-secondary",
               "hover:border-border-strong hover:text-text-primary",

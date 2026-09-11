@@ -121,7 +121,7 @@ flowchart TD
     end
 
     UI -->|read view models| SC
-    UI -.->|POST evidence, never a provider| API
+    UI -.->|POST question + optional session credential header| API
     SC --> REPO
     REPO --> ENG
     REPO --> SEED
@@ -144,6 +144,22 @@ provider or the AI service. Model calls originate only in
 can never be bundled into a client component. The service selects a provider via
 `getAiProvider()` and returns both the explanation text and a fully-formed
 `AiInteraction` record for token accounting.
+
+Authenticated V2 users may also select the existing NVIDIA adapter in the
+current tab. The credential is held in a closure-backed client memory vault,
+survives navigation within the application, and is sent only in a no-store
+header to the same-origin model-test or K-201 investigator endpoint. Testing
+validates the key but does not connect it. The server validates authentication
+and credential size, resolves the governed model against NVIDIA's `/v1/models`
+catalog, creates an `OpenAiCompatibleProvider` for that request, and immediately
+discards it after the response. The session path uses
+`nvidia/nemotron-3.5-lightning-30b-a3b`, with non-streaming chat completions and
+thinking disabled. Safe failures expose only status/category, URL origin and
+pathname, content type, stage and correlation ID; raw provider bodies are never
+returned. There is no server-global credential map, cookie, browser-storage
+entry, database record, filesystem write, or environment mutation. Reloading or
+closing the tab, signing out, or explicitly disconnecting clears the client
+vault.
 
 ---
 
@@ -180,7 +196,8 @@ UI  ──POST evidence+risk──▶  /api AI route (server)
                                 └─ explainAssetRisk({ risk, evidence, … })       [ai/service.ts, server-only]
                                      ├─ getActivePrompt("asset_risk_explanation") [ai/prompts.ts, versioned]
                                      ├─ renderAssetRiskPrompt(...)  → system+user (evidence block only)
-                                     ├─ getAiProvider()             → provider    [ai/index.ts]
+                                     ├─ request-scoped NVIDIA provider (authenticated BYOK), or
+                                     │  getAiProvider()             → environment provider [ai/index.ts]
                                      │     mock | nvidia | dgxspark  (env-driven, fail-safe to mock)
                                      ├─ provider.generate(request)  → text, tokens, latency
                                      └─ estimateModelCost(model, in, out)         [engines/rots.ts]
@@ -214,6 +231,7 @@ interface AiProvider {
 |---|---|---|---|
 | `MockAiProvider` | `providers/mock.ts` | Default; offline demo | None |
 | NVIDIA | `providers/openai-compatible.ts` | `AI_PROVIDER=nvidia` | `NVIDIA_API_BASE_URL`, `NVIDIA_API_KEY`, `NVIDIA_MODEL` |
+| NVIDIA session BYOK | `providers/nvidia-session.ts` | Authenticated V2 user connects for the active page session | Volatile client-memory key; server receives it only per request |
 | DGX Spark | `providers/openai-compatible.ts` | `AI_PROVIDER=dgxspark` | `DGXSPARK_API_BASE_URL`, `DGXSPARK_API_KEY`, `DGXSPARK_MODEL` |
 
 **Model portability path:** `mock` → NVIDIA (OpenAI-compatible
@@ -226,6 +244,14 @@ OpenAI-compatible endpoint is a configuration change, not a code change.
 `dgxspark` is selected but keys are blank, `isAvailable()` returns false and the
 factory falls back to `MockAiProvider`. The app therefore always runs, credential
 or not. No network call is ever made without an explicit API key.
+
+**Session BYOK precedence:** an authenticated request carrying the internal
+NVIDIA session headers receives a transient NVIDIA provider instance for that
+request only. The deterministic K-201 response is still built first. Provider
+output may replace only the citation-validated narrative fields; provider
+timeout, transport failure, malformed JSON, unsupported claims, or citation
+failure returns the complete deterministic response with an explicit governed
+fallback status.
 
 ---
 

@@ -2,6 +2,10 @@
 
 import { SessionProvider, signIn as nextAuthSignIn, signOut as nextAuthSignOut, useSession } from "next-auth/react";
 import type { ReactNode } from "react";
+import {
+  ModelConnectionProvider,
+  notifyModelConnectionSignOut,
+} from "./ModelConnectionProvider";
 
 /**
  * Real Auth.js identity session. This wraps `next-auth/react`'s
@@ -18,7 +22,11 @@ import type { ReactNode } from "react";
  * operational authority.
  */
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
-  return <SessionProvider>{children}</SessionProvider>;
+  return (
+    <SessionProvider>
+      <ModelConnectionProvider>{children}</ModelConnectionProvider>
+    </SessionProvider>
+  );
 }
 
 /**
@@ -38,6 +46,7 @@ export function useAuthSession() {
       void nextAuthSignIn("github");
     },
     signOut: () => {
+      notifyModelConnectionSignOut();
       void nextAuthSignOut();
     },
   };

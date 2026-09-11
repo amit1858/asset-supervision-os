@@ -57,9 +57,10 @@ export function isAgentQuestionId(value: unknown): value is AgentQuestionId {
   return typeof value === "string" && (AGENT_QUESTION_IDS as readonly string[]).includes(value);
 }
 
-/** Provider identity the client is permitted to display. Three labels only. */
+/** Provider identity labels the client is permitted to display. */
 export const PROVIDER_DISPLAY_LABELS = [
   "Azure AI Foundry",
+  "NVIDIA",
   "Local model",
   "Deterministic fallback",
 ] as const;
@@ -74,8 +75,9 @@ export function providerDisplayLabel(id: AgentProviderId): ProviderDisplayLabel 
     case "azure":
       return "Azure AI Foundry";
     case "dgxspark":
-    case "nvidia":
       return "Local model";
+    case "nvidia":
+      return "NVIDIA";
     case "mock":
     default:
       return "Deterministic fallback";

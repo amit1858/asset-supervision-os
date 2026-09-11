@@ -20,6 +20,16 @@ disconnected dashboards.
 > risk, time-to-critical, exposure, and value. Humans retain approval and endorsement authority.
 > Any unavailable, invalid, unsupported, or ungrounded provider response is discarded and
 > replaced by the deterministic governed narrative. No operational write-back is enabled.
+>
+> Authenticated users may connect an NVIDIA API key in the current tab from the
+> V2 header. The key remains in volatile page memory while navigating within the
+> application and is sent only to authenticated same-origin server routes when
+> testing or requesting narration. Reloading or closing the tab, signing out, or
+> disconnecting clears it. Testing a key does not connect it. The key is never
+> written to browser storage, cookies, the repository, or an environment file.
+> The server confirms the current governed model through NVIDIA's `/v1/models`
+> catalog before testing or narrating. Guest Demo remains deterministic and
+> cannot connect a provider.
 
 ---
 
@@ -33,8 +43,10 @@ npm run dev
 
 No credentials are required. The app runs on a **local seeded dataset** with a **mock AI
 provider** and an **offline mock voice** experience out of the box. Copy `.env.example` to
-`.env.local` only if you later want to point at a real NVIDIA-compatible endpoint or Snowflake
-— no secrets are ever committed.
+`.env.local` only if an operator wants environment-selected providers or Snowflake.
+Authenticated users can instead connect NVIDIA session-scoped credentials from
+the application without modifying environment configuration. No secrets are
+ever committed.
 
 `/` redirects to the **active persona's** landing page (default: Reliability Manager). Switch
 personas from **"Viewing as…"** in the top bar; navigation, landing page, and the Chief of

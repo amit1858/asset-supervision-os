@@ -9,6 +9,7 @@ import {
   type AgentQuestionId,
   type GovernedAgentResponse,
 } from "@/agent/types";
+import { useModelConnection } from "@/components/auth/ModelConnectionProvider";
 
 /**
  * K-201 governed Case Investigator — the single canonical agent surface.
@@ -38,6 +39,7 @@ type CaseState =
   | { kind: "ready"; response: GovernedAgentResponse };
 
 export function K201CaseInvestigator() {
+  const { connection, getProviderHeaders } = useModelConnection();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<CaseState>({ kind: "idle" });
   // A monotonic request token: only the newest in-flight request may commit its
@@ -56,7 +58,11 @@ export function K201CaseInvestigator() {
     try {
       const res = await fetch("/api/agent/k201-case", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          ...getProviderHeaders(),
+        },
         body: JSON.stringify({ questionId }),
       });
       if (token !== requestToken.current) return;
@@ -72,11 +78,11 @@ export function K201CaseInvestigator() {
     } finally {
       if (token === requestToken.current) inFlight.current = false;
     }
-  }, []);
+  }, [getProviderHeaders]);
 
   const openInvestigator = useCallback(() => {
     setOpen(true);
-  }, [ask]);
+  }, []);
 
   const closeInvestigator = useCallback(() => setOpen(false), []);
 
@@ -108,8 +114,10 @@ export function K201CaseInvestigator() {
             Human authority
           </p>
           <p className="mt-1 text-[11px] text-text-muted">
-            Primary investigation: Why act now? · governed provider/fallback
-            status is disclosed after selection.
+            Primary investigation: Why act now? ·{" "}
+            {connection.status === "connected"
+              ? "NVIDIA-assisted narration is connected; governed fallback remains active."
+              : "governed deterministic narration is active."}
           </p>
         </div>
         <button

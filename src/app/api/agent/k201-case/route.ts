@@ -3,6 +3,12 @@ import { randomUUID } from "node:crypto";
 import { readOperationalContext } from "@/context/server";
 import { investigateK201Case } from "@/agent/orchestrator";
 import { AGENT_QUESTIONS, isAgentQuestionId } from "@/agent/types";
+import { getAuthSession } from "@/lib/auth-server";
+import {
+  createNvidiaSessionProvider,
+  resolveNvidiaSessionModel,
+  validateSessionApiKey,
+} from "@/ai/providers/nvidia-session";
 
 /**
  * POST /api/agent/k201-case
@@ -19,31 +25,61 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 4096;
+const API_KEY_HEADER = "x-aso-nvidia-api-key";
+const PROVIDER_HEADER = "x-aso-ai-provider";
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, private, max-age=0",
+  Pragma: "no-cache",
+} as const;
+
+function json(body: Record<string, unknown>, status = 200): Response {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
 
 export async function POST(request: Request): Promise<Response> {
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declared) && declared > MAX_BYTES) {
-    return NextResponse.json({ error: "Request too large" }, { status: 413 });
+    return json({ error: "Request too large" }, 413);
   }
 
   let body: unknown;
   try {
     const raw = await request.text();
     if (raw.length > MAX_BYTES) {
-      return NextResponse.json({ error: "Request too large" }, { status: 413 });
+      return json({ error: "Request too large" }, 413);
     }
     body = raw.length === 0 ? {} : JSON.parse(raw);
   } catch {
-    return NextResponse.json({ error: "Malformed request" }, { status: 400 });
+    return json({ error: "Malformed request" }, 400);
   }
 
   const questionId = (body as { questionId?: unknown } | null)?.questionId;
   if (!isAgentQuestionId(questionId)) {
-    return NextResponse.json({ error: "Unknown question" }, { status: 400 });
+    return json({ error: "Unknown question" }, 400);
   }
 
   const question = AGENT_QUESTIONS.find((q) => q.id === questionId)!.prompt;
   const ctx = readOperationalContext();
+  const requestedProvider = request.headers.get(PROVIDER_HEADER);
+  let provider;
+  if (requestedProvider !== null) {
+    if (requestedProvider !== "nvidia") {
+      return json({ error: "unsupported_provider" }, 400);
+    }
+    if (!(await getAuthSession())) {
+      return json({ error: "authentication_required" }, 401);
+    }
+    const apiKey = validateSessionApiKey(request.headers.get(API_KEY_HEADER));
+    if (!apiKey) {
+      return json({ error: "invalid_credential" }, 400);
+    }
+    try {
+      const model = await resolveNvidiaSessionModel(apiKey);
+      provider = createNvidiaSessionProvider(apiKey, model);
+    } catch {
+      return json({ error: "provider_configuration_unavailable" }, 503);
+    }
+  }
 
   try {
     const response = await investigateK201Case({
@@ -51,10 +87,11 @@ export async function POST(request: Request): Promise<Response> {
       questionId,
       question,
       requestId: randomUUID(),
+      provider,
     });
-    return NextResponse.json(response);
+    return json(response);
   } catch {
     // Fail closed — never echo the request body or internal detail.
-    return NextResponse.json({ error: "Investigation failed" }, { status: 500 });
+    return json({ error: "Investigation failed" }, 500);
   }
 }
