@@ -116,7 +116,7 @@ export function K201CaseInvestigator() {
           <p className="mt-1 text-[11px] text-text-muted">
             Primary investigation: Why act now? ·{" "}
             {connection.status === "connected"
-              ? "NVIDIA-assisted narration is connected; governed fallback remains active."
+              ? `${connection.provider} narration is connected; governed fallback remains active.`
               : "governed deterministic narration is active."}
           </p>
         </div>

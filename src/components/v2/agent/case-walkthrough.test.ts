@@ -115,7 +115,7 @@ function render(response: GovernedAgentResponse): string {
 describe("providerStatusLabel — exact governed status strings", () => {
   it("labels a provider-grounded answer as a live NVIDIA narrative", () => {
     expect(providerStatusLabel("provider_grounded")).toBe(
-      "Live NVIDIA narrative · governed and citation-validated",
+      "Live provider narrative · governed and citation-validated",
     );
   });
 
@@ -174,7 +174,7 @@ describe("CaseWalkthrough — governed five-stage rendering", () => {
 
   it("renders the live-provider label when the answer is provider-grounded", () => {
     const html = render(fixture({ generationStatus: "provider_grounded" }));
-    expect(html).toContain("Live NVIDIA narrative · governed and citation-validated");
+    expect(html).toContain("Live provider narrative · governed and citation-validated");
   });
 
   it("restates the existing recommendation and never exposes an action control", () => {

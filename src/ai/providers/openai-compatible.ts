@@ -4,11 +4,15 @@ import type { AiProviderId } from "@/domain/enums";
 
 export type ProviderFailureCategory =
   | "authentication_or_entitlement_rejected"
+  | "permission_denied"
+  | "insufficient_credit_or_entitlement"
   | "endpoint_or_model_unavailable"
   | "rate_limited_or_quota_unavailable"
   | "nvidia_service_failure"
+  | "provider_unavailable"
   | "request_schema_rejected"
   | "response_schema_mismatch"
+  | "invalid_or_incomplete_output"
   | "network_tls_or_dns_failure"
   | "provider_timeout";
 

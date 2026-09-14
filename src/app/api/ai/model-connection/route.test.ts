@@ -112,7 +112,7 @@ describe("/api/ai/model-connection", () => {
         pathname: "/v1/models",
         status: 403,
         requestId: "safe-request-id",
-        category: "authentication_or_entitlement_rejected",
+        category: "permission_denied",
         model: "nvidia/nemotron-3.5-lightning-30b-a3b",
         contentType: "application/problem+json",
         stage: "request",
@@ -152,5 +152,39 @@ describe("/api/ai/model-connection", () => {
     );
     expect(guest.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the server-selected OpenAI Responses and Anthropic Messages contracts", async () => {
+    mockGetAuthSession.mockResolvedValue({ user: { name: "Reliability Lead" } });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      url: "https://api.openai.com/v1/responses",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ output_text: '{"connected":true}' }),
+    });
+    const openAi = await POST(request({
+      "x-aso-ai-provider": "openai",
+      "x-aso-ai-model": "gpt-4.1-mini",
+      "x-aso-openai-api-key": "openai-representative-key",
+    }));
+    expect(openAi.status).toBe(200);
+    expect((fetchMock.mock.calls[0]?.[0] as string)).toBe("https://api.openai.com/v1/responses");
+
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      url: "https://api.anthropic.com/v1/messages",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ content: [{ type: "text", text: '{"connected":true}' }] }),
+    });
+    const anthropic = await POST(request({
+      "x-aso-ai-provider": "anthropic",
+      "x-aso-ai-model": "claude-haiku-4-5-20251001",
+      "x-aso-anthropic-api-key": "anthropic-representative-key",
+    }));
+    expect(anthropic.status).toBe(200);
+    expect((fetchMock.mock.calls[0]?.[0] as string)).toBe("https://api.anthropic.com/v1/messages");
   });
 });

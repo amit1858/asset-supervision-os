@@ -103,25 +103,25 @@ export function V2TopBar({
           aria-label={
             isAuthenticated
               ? connection.status === "connected"
-                ? "NVIDIA connected in this tab until reload. Manage model connection."
-                : "Connect your model"
-              : "Deterministic narration — model connection unavailable in Guest Demo. Sign in to connect NVIDIA."
+                ? "Provider connected in this tab until reload. Manage Provider Centre."
+                : "Open Provider Centre"
+              : "Deterministic narration — Provider Centre requires sign-in."
           }
           title={
             isAuthenticated
               ? connection.status === "connected"
-                ? "NVIDIA is connected in this tab until reload, sign-out, or disconnect."
-                : "Connect NVIDIA in this tab until reload, sign-out, or disconnect."
-              : "Guest Demo uses governed deterministic narration. Sign in to connect NVIDIA."
+                ? "A provider is connected in this tab until reload, sign-out, or disconnect."
+                : "Connect a provider in this tab until reload, sign-out, or disconnect."
+              : "Guest Demo uses governed deterministic narration. Sign in to open Provider Centre."
           }
           className="ml-0.5 flex h-11 shrink-0 items-center gap-1.5 rounded-md border border-[var(--color-header-control-border)] bg-[var(--color-header-control)] px-1.5 py-1.5 text-sm text-header-fg hover:bg-[var(--color-header-control-hover)] aria-disabled:cursor-not-allowed aria-disabled:opacity-50 lg:h-auto lg:px-2"
         >
           <Icon name="agent" size={15} />
           <span className="hidden min-[1360px]:inline">
             {connection.status === "connected"
-              ? "NVIDIA connected"
+              ? `${connection.provider} connected`
               : isAuthenticated
-                ? "Connect your model"
+                ? "Provider Centre"
                 : "Deterministic narration"}
           </span>
         </button>

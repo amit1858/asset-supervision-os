@@ -23,7 +23,7 @@ describe("ModelConnectionProvider security and lifecycle invariants", () => {
   });
 
   it("clears credentials on disconnect, sign-out and page lifecycle end", () => {
-    expect(source).toContain("credentialVaultRef.current?.clear()");
+    expect(source).toContain("vault.current?.clear()");
     expect(source).toContain('window.addEventListener(SIGN_OUT_EVENT, clear)');
     expect(source).toContain('window.addEventListener("pagehide", clear)');
     expect(source).toContain('status === "unauthenticated"');
@@ -34,7 +34,7 @@ describe("ModelConnectionProvider security and lifecycle invariants", () => {
 
   it("sends the key only to same-origin server endpoints with no-store", () => {
     expect(source).toContain('fetch("/api/ai/model-connection"');
-    expect(source).toContain("[API_KEY_HEADER]: apiKey");
+    expect(source).toContain("X-ASO-${providerId}-API-Key");
     expect(source).toContain('cache: "no-store"');
     expect(source).not.toContain("integrate.api.nvidia.com");
   });
@@ -56,18 +56,16 @@ describe("ModelConnectionProvider security and lifecycle invariants", () => {
 
   it("states the exact tab-scoped credential lifetime", () => {
     expect(source).toContain(
-      "NVIDIA-assisted narration for this tab until you reload, sign out, or disconnect.",
+      "Session-scoped BYOK for governed narration; credentials are never persisted.",
     );
-    expect(source).toContain("while you navigate");
-    expect(source).toContain("Reloading or closing the tab");
-    expect(source).toContain("Testing the key does not connect");
+    expect(source).toContain("Reload, sign-out, disconnect");
+    expect(source).toContain("Testing does not connect it");
   });
 
   it("uses the accessible drawer with explicit credential labels and close text", () => {
-    expect(source).toContain('title="Connect your model"');
-    expect(source).toContain('closeLabel="Close model connection"');
-    expect(source).toContain('htmlFor="nvidia-session-api-key"');
-    expect(source).toContain("Show NVIDIA API key");
-    expect(source).toContain("Hide NVIDIA API key");
+    expect(source).toContain('title="Provider Centre"');
+    expect(source).toContain('closeLabel="Close Provider Centre"');
+    expect(source).toContain('htmlFor="session-provider-api-key"');
+    expect(source).toContain("The masked key stays in volatile memory only.");
   });
 });

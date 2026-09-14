@@ -145,7 +145,7 @@ can never be bundled into a client component. The service selects a provider via
 `getAiProvider()` and returns both the explanation text and a fully-formed
 `AiInteraction` record for token accounting.
 
-Authenticated V2 users may also select the existing NVIDIA adapter in the
+Authenticated V2 users may also select a provider adapter in the
 current tab. The credential is held in a closure-backed client memory vault,
 survives navigation within the application, and is sent only in a no-store
 header to the same-origin model-test or K-201 investigator endpoint. Testing
@@ -231,7 +231,7 @@ interface AiProvider {
 |---|---|---|---|
 | `MockAiProvider` | `providers/mock.ts` | Default; offline demo | None |
 | NVIDIA | `providers/openai-compatible.ts` | `AI_PROVIDER=nvidia` | `NVIDIA_API_BASE_URL`, `NVIDIA_API_KEY`, `NVIDIA_MODEL` |
-| NVIDIA session BYOK | `providers/nvidia-session.ts` | Authenticated V2 user connects for the active page session | Volatile client-memory key; server receives it only per request |
+| Provider Centre session BYOK | `providers/session-provider.ts` | Authenticated V2 user selects NVIDIA, OpenRouter, OpenAI, or Anthropic for the active page session | Volatile client-memory key; server receives it only per request |
 | DGX Spark | `providers/openai-compatible.ts` | `AI_PROVIDER=dgxspark` | `DGXSPARK_API_BASE_URL`, `DGXSPARK_API_KEY`, `DGXSPARK_MODEL` |
 
 **Model portability path:** `mock` → NVIDIA (OpenAI-compatible

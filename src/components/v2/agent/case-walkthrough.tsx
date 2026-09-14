@@ -66,7 +66,7 @@ export function stageForClaimKind(kind: ClaimKind): StageId {
 export function providerStatusLabel(status: AgentGenerationStatus): string {
   switch (status) {
     case "provider_grounded":
-      return "Live NVIDIA narrative · governed and citation-validated";
+      return "Live provider narrative · governed and citation-validated";
     case "provider_rejected_fallback":
       return "Governed fallback · live provider response was not used";
     case "deterministic":

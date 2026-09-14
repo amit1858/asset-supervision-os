@@ -124,14 +124,16 @@ export async function resolveNvidiaSessionModel(
   if (!response.ok) {
     clearTimeout(timeout);
     const category =
-      response.status === 401 || response.status === 403
+      response.status === 401
         ? "authentication_or_entitlement_rejected"
+        : response.status === 403
+          ? "permission_denied"
         : response.status === 404
           ? "endpoint_or_model_unavailable"
           : response.status === 429
             ? "rate_limited_or_quota_unavailable"
             : response.status >= 500
-              ? "nvidia_service_failure"
+              ? "provider_unavailable"
               : "request_schema_rejected";
     throw modelsFailure(category, NVIDIA_SESSION_MODEL, response.status, response);
   }

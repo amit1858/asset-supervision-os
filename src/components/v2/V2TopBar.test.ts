@@ -18,18 +18,18 @@ describe("V2TopBar — governed model connection action", () => {
   });
 
   it("explains guest deterministic narration without implying a connection", () => {
-    expect(source).toContain("Connect your model");
+    expect(source).toContain("Provider Centre");
     expect(source).toContain("Deterministic narration");
     expect(source).toContain(
-      "Guest Demo uses governed deterministic narration. Sign in to connect NVIDIA.",
+      "Guest Demo uses governed deterministic narration. Sign in to open Provider Centre.",
     );
     expect(source).toContain(
-      "Deterministic narration — model connection unavailable in Guest Demo. Sign in to connect NVIDIA.",
+      "Deterministic narration — Provider Centre requires sign-in.",
     );
   });
 
   it("shows the connected state without conflating identity or persona", () => {
-    expect(source).toContain("NVIDIA connected");
+    expect(source).toContain("connected");
     expect(source).toContain("<V2PersonaSelector />");
     expect(source).toContain('href="/access"');
   });

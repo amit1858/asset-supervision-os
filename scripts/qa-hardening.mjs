@@ -1,13 +1,49 @@
 // Phase-2A hardening QA: shell first-paint stability (CLS + gap), voice-over-API,
 // and required screenshots. Assertions printed as PASS/FAIL.
 import { chromium } from "playwright";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
 
 const OUT = "qa/hardening";
 const PORT = process.argv[2] || "3000";
 const BASE = `http://localhost:${PORT}`;
 mkdirSync(OUT, { recursive: true });
+
+// Environment-neutral browser discovery (mirrors scripts/qa-v2-shell.mjs): prefer
+// the locally installed Microsoft Edge via Playwright's `channel` so no Chromium
+// download is required, fall back to a bundled Chromium binary if one is already
+// installed, then an explicit Edge executable path, and otherwise fail with a
+// clear, actionable message rather than depending on any one machine-specific path.
+async function launchBrowser() {
+  const attempts = [];
+  try {
+    return await chromium.launch({ channel: "msedge" });
+  } catch (e) {
+    attempts.push(`channel:msedge -> ${e.message.split("\n")[0]}`);
+  }
+  try {
+    return await chromium.launch();
+  } catch (e) {
+    attempts.push(`chromium bundled -> ${e.message.split("\n")[0]}`);
+  }
+  const edgePaths = [
+    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+  ];
+  for (const p of edgePaths) {
+    if (existsSync(p)) {
+      try {
+        return await chromium.launch({ executablePath: p });
+      } catch (e) {
+        attempts.push(`edge exe -> ${e.message.split("\n")[0]}`);
+      }
+    }
+  }
+  throw new Error(
+    "No usable browser found. Install Microsoft Edge or a Playwright Chromium " +
+      "binary. Attempts:\n  - " + attempts.join("\n  - "),
+  );
+}
 
 const results = [];
 const ok = (n, c, d = "") => results.push({ n, pass: !!c, d });
@@ -39,7 +75,7 @@ async function gap(page) {
   });
 }
 
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 
 // ---- 1024 first-paint stability + voice-over-API ----
 for (const theme of ["light", "dark"]) {

@@ -5,10 +5,11 @@ import { investigateK201Case } from "@/agent/orchestrator";
 import { AGENT_QUESTIONS, isAgentQuestionId } from "@/agent/types";
 import { getAuthSession } from "@/lib/auth-server";
 import {
-  createNvidiaSessionProvider,
-  resolveNvidiaSessionModel,
-  validateSessionApiKey,
-} from "@/ai/providers/nvidia-session";
+  createSessionProvider,
+  getSessionProviderConfig,
+  validateSessionCredential,
+} from "@/ai/providers/session-provider";
+import { createNvidiaSessionProvider, resolveNvidiaSessionModel } from "@/ai/providers/nvidia-session";
 
 /**
  * POST /api/agent/k201-case
@@ -25,8 +26,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 4096;
-const API_KEY_HEADER = "x-aso-nvidia-api-key";
 const PROVIDER_HEADER = "x-aso-ai-provider";
+const MODEL_HEADER = "x-aso-ai-model";
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, private, max-age=0",
   Pragma: "no-cache",
@@ -62,23 +63,28 @@ export async function POST(request: Request): Promise<Response> {
   const ctx = readOperationalContext();
   const requestedProvider = request.headers.get(PROVIDER_HEADER);
   let provider;
-  if (requestedProvider !== null) {
-    if (requestedProvider !== "nvidia") {
-      return json({ error: "unsupported_provider" }, 400);
-    }
+  if (requestedProvider !== null && requestedProvider !== "mock") {
     if (!(await getAuthSession())) {
       return json({ error: "authentication_required" }, 401);
     }
-    const apiKey = validateSessionApiKey(request.headers.get(API_KEY_HEADER));
+    const model = request.headers.get(MODEL_HEADER) ?? (
+      requestedProvider === "nvidia"
+        ? "nvidia/nemotron-3.5-lightning-30b-a3b"
+        : ""
+    );
+    const config = getSessionProviderConfig(requestedProvider, model);
+    if (!config) return json({ error: "unsupported_provider_or_model" }, 400);
+    const apiKey = validateSessionCredential(
+      request.headers.get(`x-aso-${requestedProvider}-api-key`) ??
+      (requestedProvider === "nvidia" ? request.headers.get("x-aso-nvidia-api-key") : null),
+    );
     if (!apiKey) {
       return json({ error: "invalid_credential" }, 400);
     }
-    try {
-      const model = await resolveNvidiaSessionModel(apiKey);
-      provider = createNvidiaSessionProvider(apiKey, model);
-    } catch {
-      return json({ error: "provider_configuration_unavailable" }, 503);
-    }
+    provider = requestedProvider === "nvidia"
+      ? createNvidiaSessionProvider(apiKey, model)
+      : createSessionProvider(requestedProvider, model, apiKey);
+    if (!provider) return json({ error: "unsupported_provider_or_model" }, 400);
   }
 
   try {

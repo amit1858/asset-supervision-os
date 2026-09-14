@@ -21,7 +21,7 @@ disconnected dashboards.
 > Any unavailable, invalid, unsupported, or ungrounded provider response is discarded and
 > replaced by the deterministic governed narrative. No operational write-back is enabled.
 >
-> Authenticated users may connect an NVIDIA API key in the current tab from the
+> Authenticated users may connect a provider API key in the current tab from the
 > V2 header. The key remains in volatile page memory while navigating within the
 > application and is sent only to authenticated same-origin server routes when
 > testing or requesting narration. Reloading or closing the tab, signing out, or
@@ -44,7 +44,7 @@ npm run dev
 No credentials are required. The app runs on a **local seeded dataset** with a **mock AI
 provider** and an **offline mock voice** experience out of the box. Copy `.env.example` to
 `.env.local` only if an operator wants environment-selected providers or Snowflake.
-Authenticated users can instead connect NVIDIA session-scoped credentials from
+Authenticated users can instead connect session-scoped credentials from
 the application without modifying environment configuration. No secrets are
 ever committed.
 
@@ -253,3 +253,10 @@ Snowflake-compatible DDL for all 22 entities: [db/migrations/snowflake/001_core_
 Next.js 14 (App Router) · TypeScript (strict) · Tailwind (CSS-variable design tokens, light +
 dark) · Vitest · Zod · Playwright (visual QA). Snowflake is the intended data & analytics
 platform (Phase 2). Development environment: Claude Code.
+The Provider Centre currently supports direct BYOK for NVIDIA, OpenRouter,
+OpenAI Responses, and Anthropic Messages. Provider endpoints and approved model
+IDs are server-authoritative; OpenRouter OAuth/PKCE is intentionally deferred.
+Credentials remain in the closure-backed volatile browser vault and are sent
+only to authenticated same-origin routes. Provider narration can replace only
+validated Case Investigator prose; deterministic calculations, evidence,
+recommendations, authority routing, and fallback provenance remain governed.

@@ -7,6 +7,9 @@ import { fmtCost, fmtCurrency, fmtDateTime, fmtNumber, fmtTokens } from "@/lib/f
 const PROVIDER_LABEL: Record<AiProviderId, string> = {
   mock: "Mock (offline)",
   nvidia: "NVIDIA",
+  openrouter: "OpenRouter",
+  openai: "OpenAI",
+  anthropic: "Anthropic",
   dgxspark: "DGX Spark",
   azure: "Azure AI Foundry",
 };

@@ -61,13 +61,24 @@ export function isAgentQuestionId(value: unknown): value is AgentQuestionId {
 export const PROVIDER_DISPLAY_LABELS = [
   "Azure AI Foundry",
   "NVIDIA",
+  "OpenRouter",
+  "OpenAI",
+  "Anthropic",
   "Local model",
   "Deterministic fallback",
 ] as const;
 export type ProviderDisplayLabel = (typeof PROVIDER_DISPLAY_LABELS)[number];
 
 /** Configured provider ids (mirrors the additive `AiProviderId` union). */
-export const AGENT_PROVIDER_IDS = ["azure", "dgxspark", "nvidia", "mock"] as const;
+export const AGENT_PROVIDER_IDS = [
+  "azure",
+  "dgxspark",
+  "nvidia",
+  "openrouter",
+  "openai",
+  "anthropic",
+  "mock",
+] as const;
 export type AgentProviderId = (typeof AGENT_PROVIDER_IDS)[number];
 
 export function providerDisplayLabel(id: AgentProviderId): ProviderDisplayLabel {
@@ -78,6 +89,12 @@ export function providerDisplayLabel(id: AgentProviderId): ProviderDisplayLabel 
       return "Local model";
     case "nvidia":
       return "NVIDIA";
+    case "openrouter":
+      return "OpenRouter";
+    case "openai":
+      return "OpenAI";
+    case "anthropic":
+      return "Anthropic";
     case "mock":
     default:
       return "Deterministic fallback";
